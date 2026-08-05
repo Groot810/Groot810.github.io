@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import NodePromptEditor from './components/NodePromptEditor.vue'
 import ToggleRow from './components/ToggleRow.vue'
 
@@ -46,6 +46,19 @@ type AudioPlaybackState = {
   playing: boolean
   muted: boolean
 }
+type CanvasRole = {
+  id: string
+  name: string
+  systemPrompt: string
+  createdAt: number
+}
+type SavedPrompt = {
+  id: string
+  text: string
+  kind: ServiceKind
+  createdAt: number
+  updatedAt: number
+}
 type CanvasNode = {
   id: string
   kind: NodeKind
@@ -68,7 +81,13 @@ type CanvasNode = {
   imageAutoSize?: boolean
   imageCount?: number
   imagePrompt?: string
+  videoAspectWidth?: number
+  videoAspectHeight?: number
+  videoAutoSize?: boolean
+  videoDuration?: number
+  videoResolution?: 720 | 480
   modelChannelId?: string
+  roleId?: string
   audioPlaybackRate?: number
   audioVolume?: number
   lastGeneration?: GenerationSnapshot
@@ -107,8 +126,82 @@ const resizeCorners: ResizeCorner[] = ['nw', 'ne', 'sw', 'se']
 const uid = () => Math.random().toString(36).slice(2, 9)
 const CANVAS_INDEX_KEY = 'infinite:canvas-index'
 const CANVAS_TEMPLATES_KEY = 'infinite:canvas-templates'
+const CANVAS_ROLES_KEY = 'infinite:canvas-roles'
+const SAVED_PROMPTS_KEY = 'infinite:saved-prompts'
 const MAX_CANVAS_TEMPLATES = 10
+const MAX_CANVAS_ROLES = 30
+const MAX_SAVED_PROMPTS = 100
+const builtInCanvasTemplates: CanvasTemplate[] = [
+  {
+    id: 'library-fashion-replication',
+    name: '服装复刻',
+    createdAt: 0,
+    nodes: [
+      {
+        id: 'fashion-source-video', kind: 'video', title: '视频素材',
+        x: -445.95734450282305, y: -509.2178940270122, width: 300,
+        content: '等待添加视频素材', status: 'idle', version: 1, createdAt: 1,
+      },
+      {
+        id: 'fashion-keyframes', kind: 'image', title: '参考图片',
+        x: -60.28246141361116, y: -611.5398385508832, width: 300,
+        content: '拖入图片或点击上传', status: 'idle', version: 1, createdAt: 2,
+        imageWidth: 1024, imageHeight: 1024, imageAutoSize: true, imageCount: 1,
+      },
+      {
+        id: 'fashion-motion-prompt', kind: 'text', title: '创意提示词',
+        x: 430.7722174391412, y: -512.5472919018647, width: 360, height: 300,
+        content: '', status: 'idle', version: 1, createdAt: 3,
+      },
+      {
+        id: 'fashion-result-video', kind: 'video', title: '视频素材',
+        x: 986.1992094621554, y: -383.2923526810321, width: 300,
+        content: '等待添加视频素材', status: 'idle', version: 1, createdAt: 4,
+      },
+      {
+        id: 'fashion-product-reference', kind: 'image', title: '参考图片',
+        x: -9.12145312147715, y: -1000.3630944298586, width: 300,
+        content: '拖入图片或点击上传', status: 'idle', version: 1, createdAt: 5,
+        imageWidth: 1024, imageHeight: 1024, imageAutoSize: true, imageCount: 1,
+      },
+      {
+        id: 'fashion-image-prompt', kind: 'text', title: '创意提示词',
+        x: 450.4496059242356, y: -934.4284710809064, width: 360, height: 300,
+        content: '', status: 'idle', version: 1, createdAt: 6,
+      },
+      {
+        id: 'fashion-model-reference', kind: 'image', title: '参考图片',
+        x: 1434.582631624653, y: -263.32531913987236, width: 300,
+        content: '拖入图片或点击上传', status: 'idle', version: 1, createdAt: 7,
+        imageWidth: 1024, imageHeight: 1024, imageAutoSize: true, imageCount: 1,
+      },
+      {
+        id: 'fashion-product-image', kind: 'image', title: '参考图片',
+        x: 1469.0366081886614, y: -1006.6598760395842, width: 300,
+        content: '拖入图片或点击上传', status: 'idle', version: 1, createdAt: 8,
+        imageWidth: 1024, imageHeight: 1024, imageAutoSize: true, imageCount: 1,
+      },
+      {
+        id: 'fashion-flat-lay', kind: 'image', title: '参考图片',
+        x: 2098.710301416598, y: -841.3705838110385, width: 300,
+        content: '拖入图片或点击上传', status: 'idle', version: 1, createdAt: 9,
+        imageWidth: 1024, imageHeight: 1024, imageAutoSize: true, imageCount: 1,
+      },
+    ],
+    edges: [
+      { id: 'fashion-edge-1', source: 'fashion-source-video', target: 'fashion-keyframes', order: 1, enabled: true },
+      { id: 'fashion-edge-2', source: 'fashion-keyframes', target: 'fashion-motion-prompt', order: 1, enabled: true },
+      { id: 'fashion-edge-3', source: 'fashion-motion-prompt', target: 'fashion-result-video', order: 1, enabled: true },
+      { id: 'fashion-edge-4', source: 'fashion-product-reference', target: 'fashion-image-prompt', order: 1, enabled: true },
+      { id: 'fashion-edge-5', source: 'fashion-image-prompt', target: 'fashion-result-video', order: 2, enabled: true },
+      { id: 'fashion-edge-6', source: 'fashion-model-reference', target: 'fashion-result-video', order: 3, enabled: true },
+      { id: 'fashion-edge-7', source: 'fashion-flat-lay', target: 'fashion-result-video', order: 4, enabled: true },
+      { id: 'fashion-edge-8', source: 'fashion-product-image', target: 'fashion-result-video', order: 5, enabled: true },
+    ],
+  },
+]
 const FONT_SCALE_KEY = 'infinite:font-scale-v2'
+const INPUT_MODE_KEY = 'infinite:input-mode'
 const MAX_NODE_TEXT_CHARS = 8000
 const MAX_FORMATTED_INPUT_CHARS = 20000
 const MAX_IMAGE_PROMPT_CHARS = 30000
@@ -137,6 +230,7 @@ const showProjectMenu = ref(false)
 const showCanvasList = ref(false)
 const showRenameCanvas = ref(false)
 const renameCanvasDraft = ref('')
+const importCanvasInput = ref<HTMLInputElement | null>(null)
 const canvasIndex = ref<CanvasIndexItem[]>([])
 function detectRecommendedFontScale() {
   const viewportWidth = window.innerWidth
@@ -156,6 +250,9 @@ const fontScale = ref(
     ? savedFontScale
     : recommendedFontScale,
 )
+const inputMode = ref<'mouse' | 'trackpad'>(
+  localStorage.getItem(INPUT_MODE_KEY) === 'trackpad' ? 'trackpad' : 'mouse',
+)
 const activeSetting = ref('模型服务')
 const toast = ref('')
 const linkingFrom = ref<string | null>(null)
@@ -164,9 +261,14 @@ const history = ref<Snapshot[]>([])
 const future = ref<Snapshot[]>([])
 const canvasEl = ref<HTMLElement | null>(null)
 const canvasSize = reactive({ width: 1200, height: 800 })
+const renderedNodeSizes = reactive<Record<string, { width: number; height: number }>>({})
 const replaceImageInput = ref<HTMLInputElement | null>(null)
+const addFileInput = ref<HTMLInputElement | null>(null)
+const standaloneFileInput = ref<HTMLInputElement | null>(null)
+const addFileTargetNodeId = ref<string | null>(null)
 const zoomedImage = ref<CanvasNode | null>(null)
 const imageSettingsNodeId = ref<string | null>(null)
+const videoSettingsNodeId = ref<string | null>(null)
 const audioMenuNodeId = ref<string | null>(null)
 const audioVolumeNodeId = ref<string | null>(null)
 const audioPlaybackStates = reactive<Record<string, AudioPlaybackState>>({})
@@ -175,6 +277,18 @@ const activeTemplateTab = ref<'mine' | 'library'>('mine')
 const canvasTemplates = ref<CanvasTemplate[]>([])
 const editingTemplateId = ref<string | null>(null)
 const templateNameDraft = ref('')
+const canvasRoles = ref<CanvasRole[]>([])
+const roleManagerNodeId = ref<string | null>(null)
+const showCreateRole = ref(false)
+const roleDraft = reactive({ name: '', systemPrompt: '' })
+const savedPrompts = ref<SavedPrompt[]>([])
+const promptLibraryNodeId = ref<string | null>(null)
+const textPromptSaveNodeId = ref<string | null>(null)
+const editingPromptId = ref<string | null>(null)
+const promptEditDraft = reactive<{ text: string; kind: ServiceKind }>({ text: '', kind: 'text' })
+const showCreatePrompt = ref(false)
+const promptCreateDraft = reactive<{ text: string; kind: ServiceKind }>({ text: '', kind: 'text' })
+const mediaPromptNodeId = ref<string | null>(null)
 const imageEditNodeId = ref<string | null>(null)
 const imageVariationRunningIds = ref<string[]>([])
 const imageEditDraft = reactive<ImageEditDraft>({
@@ -198,7 +312,7 @@ let drag:
       vy: number
       pointerId: number
       captureTarget: HTMLElement
-      openImageEditorId?: string
+      openMediaPromptId?: string
       moved?: boolean
     }
   | null = null
@@ -231,6 +345,7 @@ let imageEditorOutsidePointer:
       moved: boolean
     }
   | null = null
+let nodeSizeObserver: ResizeObserver | null = null
 
 const settings = reactive({
   theme: 'dark',
@@ -240,7 +355,6 @@ const settings = reactive({
   compact: false,
   animations: true,
   systemPrompt: '你是一位擅长视觉创意与工作流编排的 AI 助手。请根据画布中的上下文提供清晰、可执行的建议。',
-  canvasPrompt: '输出简洁、准确且具有现代科技感的中文内容。',
   confirmPolicy: '仅危险操作',
   saveHistory: true,
   saveGeneration: true,
@@ -336,7 +450,6 @@ function resetModelService(
 function resetSystemPromptSettings() {
   settings.systemPrompt =
     '你是一位擅长视觉创意与工作流编排的 AI 助手。请根据画布中的上下文提供清晰、可执行的建议。'
-  settings.canvasPrompt = '输出简洁、准确且具有现代科技感的中文内容。'
   settings.confirmPolicy = '仅危险操作'
   flash('系统提示词已恢复默认')
 }
@@ -355,6 +468,12 @@ const settingGroups = [
 ]
 
 const nodeMap = computed(() => new Map(nodes.value.map((node) => [node.id, node])))
+const roleManagerNode = computed(() =>
+  roleManagerNodeId.value ? nodeMap.value.get(roleManagerNodeId.value) : undefined,
+)
+const promptLibraryNode = computed(() =>
+  promptLibraryNodeId.value ? nodeMap.value.get(promptLibraryNodeId.value) : undefined,
+)
 const selectedNode = computed(() => {
   const id = selected.value[0]
   return id ? nodeMap.value.get(id) : undefined
@@ -373,9 +492,20 @@ const minimapLayout = computed(() => {
   const minX = Math.min(viewLeft, ...nodes.value.map((node) => node.x)) - padding
   const minY = Math.min(viewTop, ...nodes.value.map((node) => node.y)) - padding
   const maxX =
-    Math.max(viewLeft + viewWidth, ...nodes.value.map((node) => node.x + node.width)) + padding
+    Math.max(
+      viewLeft + viewWidth,
+      ...nodes.value.map(
+        (node) => node.x + (renderedNodeSizes[node.id]?.width || node.width),
+      ),
+    ) + padding
   const maxY =
-    Math.max(viewTop + viewHeight, ...nodes.value.map((node) => node.y + (node.height || 210))) +
+    Math.max(
+      viewTop + viewHeight,
+      ...nodes.value.map(
+        (node) =>
+          node.y + (renderedNodeSizes[node.id]?.height || node.height || 210),
+      ),
+    ) +
     padding
   const worldWidth = Math.max(1, maxX - minX)
   const worldHeight = Math.max(1, maxY - minY)
@@ -396,8 +526,8 @@ const minimapLayout = computed(() => {
           {
             left: `${point.left}px`,
             top: `${point.top}px`,
-            width: `${Math.max(5, node.width * scale)}px`,
-            height: `${Math.max(3, (node.height || 120) * scale)}px`,
+            width: `${Math.max(5, (renderedNodeSizes[node.id]?.width || node.width) * scale)}px`,
+            height: `${Math.max(3, (renderedNodeSizes[node.id]?.height || node.height || 210) * scale)}px`,
           },
         ]
       }),
@@ -419,8 +549,301 @@ function checkpoint() {
   if (history.value.length > 50) history.value.shift()
   future.value = []
 }
+function observeNodeElement(element: unknown) {
+  if (!(element instanceof HTMLElement) || !nodeSizeObserver) return
+  nodeSizeObserver.observe(element)
+}
+function startNodeSizeObserver() {
+  nodeSizeObserver = new ResizeObserver((entries) => {
+    entries.forEach((entry) => {
+      const element = entry.target as HTMLElement
+      const id = element.dataset.nodeId
+      if (!id) return
+      const borderBox = Array.isArray(entry.borderBoxSize)
+        ? entry.borderBoxSize[0]
+        : entry.borderBoxSize
+      const width = borderBox?.inlineSize || entry.contentRect.width + 2
+      const height = borderBox?.blockSize || entry.contentRect.height + 2
+      const previous = renderedNodeSizes[id]
+      if (
+        !previous ||
+        Math.abs(previous.width - width) > 0.5 ||
+        Math.abs(previous.height - height) > 0.5
+      ) {
+        renderedNodeSizes[id] = { width, height }
+      }
+    })
+  })
+  nextTick(() => {
+    canvasEl.value
+      ?.querySelectorAll<HTMLElement>('.canvas-node')
+      .forEach((element) => nodeSizeObserver?.observe(element))
+  })
+}
 function cloneValue<T>(value: T): T {
   return JSON.parse(JSON.stringify(value))
+}
+function persistCanvasRoles() {
+  localStorage.setItem(CANVAS_ROLES_KEY, JSON.stringify(canvasRoles.value))
+}
+function loadCanvasRoles() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(CANVAS_ROLES_KEY) || '[]')
+    canvasRoles.value = Array.isArray(saved)
+      ? saved
+          .filter(
+            (role: Partial<CanvasRole>) =>
+              role.id && typeof role.name === 'string' && typeof role.systemPrompt === 'string',
+          )
+          .slice(0, MAX_CANVAS_ROLES)
+          .map((role: CanvasRole) => ({
+            ...role,
+            name: role.name.trim().slice(0, 60),
+            systemPrompt: role.systemPrompt.trim().slice(0, 12000),
+            createdAt: Number(role.createdAt) || Date.now(),
+          }))
+      : []
+  } catch {
+    canvasRoles.value = []
+  }
+}
+function roleForNode(node: CanvasNode) {
+  return canvasRoles.value.find((role) => role.id === node.roleId)
+}
+function openRoleManager(node: CanvasNode) {
+  roleManagerNodeId.value = node.id
+  showCreateRole.value = false
+  roleDraft.name = ''
+  roleDraft.systemPrompt = ''
+}
+function closeRoleManager() {
+  roleManagerNodeId.value = null
+  showCreateRole.value = false
+  roleDraft.name = ''
+  roleDraft.systemPrompt = ''
+}
+function startCreateRole() {
+  showCreateRole.value = true
+  roleDraft.name = ''
+  roleDraft.systemPrompt = ''
+}
+function saveCreatedRole() {
+  if (canvasRoles.value.length >= MAX_CANVAS_ROLES)
+    return flash('最多只能创建 30 个角色')
+  const name = roleDraft.name.trim().slice(0, 60)
+  const systemPrompt = roleDraft.systemPrompt.trim().slice(0, 12000)
+  if (!name) return flash('请输入角色名称')
+  if (!systemPrompt) return flash('请输入角色系统提示词')
+  const role: CanvasRole = {
+    id: `role-${Date.now()}-${uid()}`,
+    name,
+    systemPrompt,
+    createdAt: Date.now(),
+  }
+  canvasRoles.value.push(role)
+  try {
+    persistCanvasRoles()
+    showCreateRole.value = false
+    roleDraft.name = ''
+    roleDraft.systemPrompt = ''
+    flash(`已创建角色“${name}”，现在可以选择`)
+  } catch {
+    canvasRoles.value.pop()
+    flash('角色保存失败，请检查浏览器本地存储')
+  }
+}
+function deleteCanvasRole(role: CanvasRole) {
+  if (!window.confirm(`确定删除角色“${role.name}”吗？`)) return
+  const previousRoles = canvasRoles.value
+  canvasRoles.value = canvasRoles.value.filter((item) => item.id !== role.id)
+  try {
+    persistCanvasRoles()
+  } catch {
+    canvasRoles.value = previousRoles
+    flash('角色删除失败')
+    return
+  }
+  const affectedNodes = nodes.value.filter((node) => node.roleId === role.id)
+  if (affectedNodes.length) {
+    affectedNodes.forEach((node) => {
+      node.roleId = undefined
+      markNodeChanged(node)
+    })
+  }
+  flash(`已删除角色“${role.name}”`)
+}
+function selectRoleForCurrentNode(role: CanvasRole) {
+  const node = roleManagerNode.value
+  if (!node) return
+  checkpoint()
+  node.roleId = role.id
+  markNodeChanged(node)
+  closeRoleManager()
+  flash(`已为“${node.title}”选择角色“${role.name}”`)
+}
+function clearRoleForCurrentNode() {
+  const node = roleManagerNode.value
+  if (!node?.roleId) return
+  checkpoint()
+  node.roleId = undefined
+  markNodeChanged(node)
+  closeRoleManager()
+  flash(`已清除“${node.title}”的角色`)
+}
+function persistSavedPrompts() {
+  localStorage.setItem(SAVED_PROMPTS_KEY, JSON.stringify(savedPrompts.value))
+}
+function loadSavedPrompts() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(SAVED_PROMPTS_KEY) || '[]')
+    const validKinds: ServiceKind[] = ['text', 'image', 'video', 'audio']
+    savedPrompts.value = Array.isArray(saved)
+      ? saved
+          .filter(
+            (item: Partial<SavedPrompt>) =>
+              item.id && typeof item.text === 'string' && validKinds.includes(item.kind as ServiceKind),
+          )
+          .slice(0, MAX_SAVED_PROMPTS)
+          .map((item: SavedPrompt) => ({
+            ...item,
+            text: item.text.trim().slice(0, 32000),
+            createdAt: Number(item.createdAt) || Date.now(),
+            updatedAt: Number(item.updatedAt) || Number(item.createdAt) || Date.now(),
+          }))
+          .filter((item: SavedPrompt) => item.text)
+      : []
+  } catch {
+    savedPrompts.value = []
+  }
+}
+function normalizedPromptText(value: string) {
+  return value.replace(/\r\n?/g, '\n').trim()
+}
+function savePromptText(textValue: string, kind: ServiceKind) {
+  const text = normalizedPromptText(textValue)
+  if (!text) return false
+  if (savedPrompts.value.some((prompt) => normalizedPromptText(prompt.text) === text)) {
+    flash('提示词库中已有完全相同的内容，无需重复保存')
+    return false
+  }
+  if (savedPrompts.value.length >= MAX_SAVED_PROMPTS) {
+    flash(`最多只能保存 ${MAX_SAVED_PROMPTS} 条提示词`)
+    return false
+  }
+  const now = Date.now()
+  const savedPrompt: SavedPrompt = {
+    id: `prompt-${now}-${uid()}`,
+    text: text.slice(0, 32000),
+    kind,
+    createdAt: now,
+    updatedAt: now,
+  }
+  savedPrompts.value.unshift(savedPrompt)
+  try {
+    persistSavedPrompts()
+    flash('当前提示词已保存到“我的提示词”')
+    return true
+  } catch {
+    savedPrompts.value.shift()
+    flash('提示词保存失败，请检查浏览器本地存储')
+    return false
+  }
+}
+function saveCurrentPrompt(node: CanvasNode) {
+  savePromptText(node.content, nodeServiceKind(node))
+}
+function toggleTextPromptSaveMenu(node: CanvasNode) {
+  textPromptSaveNodeId.value = textPromptSaveNodeId.value === node.id ? null : node.id
+}
+function saveTextPromptVersion(node: CanvasNode, version: 'before' | 'after') {
+  const text = version === 'before' ? node.content : node.resultText || ''
+  if (!text.trim()) return flash(version === 'before' ? '生成前内容为空' : '生成后内容为空')
+  savePromptText(text, 'text')
+  textPromptSaveNodeId.value = null
+}
+function closeTextPromptSaveOutside(event: MouseEvent) {
+  if ((event.target as HTMLElement).closest('.text-prompt-save-wrap')) return
+  textPromptSaveNodeId.value = null
+}
+function openPromptLibrary(node: CanvasNode) {
+  textPromptSaveNodeId.value = null
+  promptLibraryNodeId.value = node.id
+  editingPromptId.value = null
+  showCreatePrompt.value = false
+}
+function closePromptLibrary() {
+  promptLibraryNodeId.value = null
+  editingPromptId.value = null
+  promptEditDraft.text = ''
+  promptEditDraft.kind = 'text'
+  showCreatePrompt.value = false
+  promptCreateDraft.text = ''
+  promptCreateDraft.kind = 'text'
+}
+function startCreatePrompt() {
+  editingPromptId.value = null
+  showCreatePrompt.value = true
+  promptCreateDraft.text = ''
+  promptCreateDraft.kind = promptLibraryNode.value
+    ? nodeServiceKind(promptLibraryNode.value)
+    : 'text'
+}
+function cancelCreatePrompt() {
+  showCreatePrompt.value = false
+  promptCreateDraft.text = ''
+}
+function saveCreatedPrompt() {
+  if (!promptCreateDraft.text.trim()) return flash('请输入提示词内容')
+  if (savePromptText(promptCreateDraft.text, promptCreateDraft.kind)) cancelCreatePrompt()
+}
+function selectSavedPrompt(prompt: SavedPrompt) {
+  const node = promptLibraryNode.value
+  if (!node) return
+  checkpoint()
+  node.content = prompt.text
+  markNodeChanged(node)
+  closePromptLibrary()
+  if (['image', 'video', 'audio'].includes(node.kind)) mediaPromptNodeId.value = node.id
+  flash(`已填入${serviceKindLabel(prompt.kind)}提示词`)
+}
+function startEditSavedPrompt(prompt: SavedPrompt) {
+  editingPromptId.value = prompt.id
+  promptEditDraft.text = prompt.text
+  promptEditDraft.kind = prompt.kind
+}
+function cancelEditSavedPrompt() {
+  editingPromptId.value = null
+  promptEditDraft.text = ''
+  promptEditDraft.kind = 'text'
+}
+function saveEditedPrompt(prompt: SavedPrompt) {
+  const text = promptEditDraft.text.trim().slice(0, 32000)
+  if (!text) return flash('提示词不能为空')
+  const previous = { ...prompt }
+  prompt.text = text
+  prompt.kind = promptEditDraft.kind
+  prompt.updatedAt = Date.now()
+  try {
+    persistSavedPrompts()
+    cancelEditSavedPrompt()
+    flash('提示词已修改')
+  } catch {
+    Object.assign(prompt, previous)
+    flash('提示词修改失败')
+  }
+}
+function deleteSavedPrompt(prompt: SavedPrompt) {
+  if (!window.confirm('确定删除这条提示词吗？')) return
+  const previous = savedPrompts.value
+  savedPrompts.value = savedPrompts.value.filter((item) => item.id !== prompt.id)
+  try {
+    persistSavedPrompts()
+    if (editingPromptId.value === prompt.id) cancelEditSavedPrompt()
+    flash('提示词已删除')
+  } catch {
+    savedPrompts.value = previous
+    flash('提示词删除失败')
+  }
 }
 function persistCanvasTemplates() {
   localStorage.setItem(CANVAS_TEMPLATES_KEY, JSON.stringify(canvasTemplates.value))
@@ -450,6 +873,11 @@ function templateNodeShell(node: CanvasNode, index: number): CanvasNode {
     imageHeight: kind === 'image' ? 1024 : undefined,
     imageAutoSize: kind === 'image' ? true : undefined,
     imageCount: kind === 'image' ? 1 : undefined,
+    videoAspectWidth: kind === 'video' ? 16 : undefined,
+    videoAspectHeight: kind === 'video' ? 9 : undefined,
+    videoAutoSize: kind === 'video' ? true : undefined,
+    videoDuration: kind === 'video' ? 5 : undefined,
+    videoResolution: kind === 'video' ? 720 : undefined,
   }
 }
 function templateStructure(nodesToCopy: CanvasNode[]) {
@@ -660,21 +1088,29 @@ function addNode(kind: NodeKind, offset = 0) {
     config: { title: '图像生成', content: '电影感产品摄影，柔和侧光', status: 'idle' },
   }
   const center = screenToCanvas(window.innerWidth * 0.47 + offset, window.innerHeight * 0.5 + offset)
+  const nodeWidth = kind === 'text' ? 360 : kind === 'config' ? 310 : 300
+  const nodeHeight = kind === 'text' ? 300 : undefined
   const node: CanvasNode = {
     id: `node-${uid()}`,
     kind,
     title: defaults[kind].title!,
     content: defaults[kind].content!,
     status: defaults[kind].status,
-    x: center.x - 140,
-    y: center.y - 90,
-    width: kind === 'config' ? 310 : 280,
+    x: center.x - nodeWidth / 2,
+    y: center.y - (nodeHeight || 180) / 2,
+    width: nodeWidth,
+    height: nodeHeight,
     version: 1,
     createdAt: Date.now(),
     imageWidth: kind === 'image' ? 1024 : undefined,
     imageHeight: kind === 'image' ? 1024 : undefined,
     imageAutoSize: kind === 'image' ? true : undefined,
     imageCount: kind === 'image' ? 1 : undefined,
+    videoAspectWidth: kind === 'video' ? 16 : undefined,
+    videoAspectHeight: kind === 'video' ? 9 : undefined,
+    videoAutoSize: kind === 'video' ? true : undefined,
+    videoDuration: kind === 'video' ? 5 : undefined,
+    videoResolution: kind === 'video' ? 720 : undefined,
   }
   nodes.value.push(node)
   selected.value = [node.id]
@@ -716,9 +1152,7 @@ function startNodeDrag(event: PointerEvent, node: CanvasNode) {
     vy: viewport.y,
     pointerId: event.pointerId,
     captureTarget,
-    openImageEditorId: (event.target as HTMLElement).closest('.image-preview.editable')
-      ? node.id
-      : undefined,
+    openMediaPromptId: ['image', 'video', 'audio'].includes(node.kind) ? node.id : undefined,
     moved: false,
   }
   window.addEventListener('pointermove', onPointerMove)
@@ -770,17 +1204,17 @@ function onPointerMove(event: PointerEvent) {
   }
 }
 function endDrag() {
-  const imageEditorNodeId =
-    drag?.openImageEditorId && !drag.moved ? drag.openImageEditorId : undefined
+  const mediaNodeId =
+    drag?.openMediaPromptId && !drag.moved ? drag.openMediaPromptId : undefined
   if (drag?.captureTarget.hasPointerCapture(drag.pointerId))
     drag.captureTarget.releasePointerCapture(drag.pointerId)
   drag = null
   window.removeEventListener('pointermove', onPointerMove)
   window.removeEventListener('pointerup', endDrag)
   window.removeEventListener('pointercancel', endDrag)
-  if (imageEditorNodeId) {
-    const node = nodeMap.value.get(imageEditorNodeId)
-    if (node) openImageEditor(node)
+  if (mediaNodeId) {
+    const node = nodeMap.value.get(mediaNodeId)
+    if (node) openMediaPrompt(node)
   }
 }
 function startNodeResize(event: PointerEvent, node: CanvasNode, corner: ResizeCorner) {
@@ -882,13 +1316,18 @@ function onWheel(event: WheelEvent) {
     return
   event.preventDefault()
   const rect = canvasEl.value!.getBoundingClientRect()
-  const px = event.clientX - rect.left
-  const py = event.clientY - rect.top
-  const old = viewport.zoom
-  const next = Math.min(2, Math.max(0.35, old * (event.deltaY > 0 ? 0.9 : 1.1)))
-  viewport.x = px - ((px - viewport.x) / old) * next
-  viewport.y = py - ((py - viewport.y) / old) * next
-  viewport.zoom = next
+  if (inputMode.value === 'mouse' || event.ctrlKey || event.metaKey) {
+    const px = event.clientX - rect.left
+    const py = event.clientY - rect.top
+    const old = viewport.zoom
+    const next = Math.min(2, Math.max(0.35, old * Math.exp(-event.deltaY * 0.01)))
+    viewport.x = px - ((px - viewport.x) / old) * next
+    viewport.y = py - ((py - viewport.y) / old) * next
+    viewport.zoom = next
+    return
+  }
+  viewport.x -= event.deltaX
+  viewport.y -= event.deltaY
 }
 function resetView() {
   viewport.x = 50
@@ -914,6 +1353,7 @@ function deleteSelected() {
   nodes.value = nodes.value.filter((node) => !ids.has(node.id))
   edges.value = edges.value.filter((edge) => !ids.has(edge.source) && !ids.has(edge.target))
   if (imageEditNodeId.value && ids.has(imageEditNodeId.value)) imageEditNodeId.value = null
+  if (mediaPromptNodeId.value && ids.has(mediaPromptNodeId.value)) mediaPromptNodeId.value = null
   selected.value = []
 }
 function hasPath(from: string, to: string, visited = new Set<string>()): boolean {
@@ -1077,10 +1517,16 @@ function buildGenerationContext(node: CanvasNode) {
   const upstream = upstreamFor(node.id)
   const formattedInputs = formatUpstreamInputs(upstream)
   const resolvedNodeContent = resolveMentionTokens(node.content, node.id)
+  const selectedRole = roleForNode(node)
   const messages: Array<{ role: 'system' | 'user'; content: string | unknown[] }> = [
     { role: 'system', content: settings.systemPrompt },
-    { role: 'system', content: `当前画布要求：\n${settings.canvasPrompt}` },
   ]
+  if (selectedRole) {
+    messages.push({
+      role: 'system',
+      content: `当前节点角色：${selectedRole.name}\n${selectedRole.systemPrompt}`,
+    })
+  }
   const multimodal: unknown[] = [{ type: 'text', text: `以下是当前节点的直接上游输入：\n\n${formattedInputs || '（无上游输入）'}` }]
   upstream
     .filter((item) => item.kind === 'image' && item.url)
@@ -1094,7 +1540,7 @@ function buildGenerationContext(node: CanvasNode) {
       : `当前节点任务：\n${resolvedNodeContent}`,
   })
   messages.push({ role: 'user', content: multimodal })
-  return { upstream, formattedInputs, messages }
+  return { upstream, formattedInputs, messages, selectedRole }
 }
 function isNodeStale(node: CanvasNode) {
   const snapshot = node.lastGeneration
@@ -1143,6 +1589,61 @@ function modelChannelLabel(channel: ModelChannel) {
 function configuredApiBase(service: ModelServiceConfig) {
   return service.baseUrl.trim().replace(/\/+$/, '')
 }
+function serviceKindLabel(kind: ServiceKind) {
+  return serviceOptions.find((item) => item.kind === kind)?.label || '当前'
+}
+function validateServiceConfig(service: ModelServiceConfig, kind: ServiceKind) {
+  const label = serviceKindLabel(kind)
+  const apiBase = configuredApiBase(service)
+  if (!apiBase) throw new Error(`未填写${label}服务的 API Base URL`)
+  try {
+    const parsed = new URL(apiBase)
+    if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error()
+  } catch {
+    throw new Error(
+      `${label}服务的 API Base URL 格式错误：“${service.baseUrl}”。请输入以 http:// 或 https:// 开头的完整地址`,
+    )
+  }
+  if (!service.model.trim())
+    throw new Error(`未填写${label}服务的模型名称，请在配置中心填写后重试`)
+  if (!service.apiKey.trim())
+    throw new Error(
+      `未配置${label}模型“${service.model}”的 API Key，请先打开配置中心完成设置`,
+    )
+}
+function serviceResponseError(
+  status: number,
+  detail: string,
+  service: ModelServiceConfig,
+  kind: ServiceKind,
+) {
+  const label = serviceKindLabel(kind)
+  if (status === 401 || status === 403)
+    return new Error(`${label}服务认证失败，请检查 API Key 是否正确或是否具有访问权限`)
+  if (status === 404)
+    return new Error(
+      `${label}服务接口不存在或模型不可用。请检查 API Base URL“${configuredApiBase(service)}”和模型名称“${service.model}”`,
+    )
+  if (/model|模型|deployment/i.test(detail))
+    return new Error(
+      `${label}模型名称“${service.model}”可能无效：${detail || `HTTP ${status}`}`,
+    )
+  return new Error(`${label}服务请求失败（HTTP ${status}）：${detail || '未返回错误详情'}`)
+}
+function readableServiceError(
+  error: unknown,
+  service: ModelServiceConfig,
+  kind: ServiceKind,
+) {
+  const message = error instanceof Error ? error.message : String(error || '')
+  if (
+    error instanceof TypeError ||
+    /failed to fetch|networkerror|network request failed|load failed/i.test(message)
+  ) {
+    return `${serviceKindLabel(kind)}服务无法连接到“${configuredApiBase(service)}”。请检查 API Base URL、网络连接、HTTPS 与跨域（CORS）设置`
+  }
+  return message || `${serviceKindLabel(kind)}服务请求失败`
+}
 function imageAspect(node: CanvasNode) {
   return `${Math.max(1, node.imageWidth || 1024)} / ${Math.max(1, node.imageHeight || 1024)}`
 }
@@ -1184,6 +1685,44 @@ function normalizedImageCount(node: CanvasNode) {
 function normalizeImageCount(node: CanvasNode) {
   node.imageCount = normalizedImageCount(node)
   markNodeChanged(node)
+}
+function normalizedVideoDuration(node: CanvasNode) {
+  return Math.min(15, Math.max(1, Math.round(node.videoDuration || 5)))
+}
+function normalizeVideoSettings(node: CanvasNode) {
+  node.videoAspectWidth = Math.min(100, Math.max(1, Math.round(node.videoAspectWidth || 16)))
+  node.videoAspectHeight = Math.min(100, Math.max(1, Math.round(node.videoAspectHeight || 9)))
+  node.videoDuration = normalizedVideoDuration(node)
+  node.videoResolution = node.videoResolution === 480 ? 480 : 720
+  markNodeChanged(node)
+}
+function setVideoAuto(node: CanvasNode) {
+  node.videoAutoSize = true
+  markNodeChanged(node)
+}
+function setVideoRatio(node: CanvasNode, width: number, height: number) {
+  node.videoAutoSize = false
+  node.videoAspectWidth = width
+  node.videoAspectHeight = height
+  markNodeChanged(node)
+}
+function videoAspectLabel(node: CanvasNode) {
+  if (node.videoAutoSize ?? true) return '自动'
+  return `${node.videoAspectWidth || 16}:${node.videoAspectHeight || 9}`
+}
+function videoRequestDimensions(node: CanvasNode) {
+  const resolution = node.videoResolution === 480 ? 480 : 720
+  const aspectWidth = node.videoAutoSize ?? true ? 16 : Math.max(1, node.videoAspectWidth || 16)
+  const aspectHeight = node.videoAutoSize ?? true ? 9 : Math.max(1, node.videoAspectHeight || 9)
+  const even = (value: number) => Math.max(2, Math.round(value / 2) * 2)
+  if (aspectWidth >= aspectHeight) {
+    return { width: even((resolution * aspectWidth) / aspectHeight), height: resolution }
+  }
+  return { width: resolution, height: even((resolution * aspectHeight) / aspectWidth) }
+}
+function videoSizeLabel(node: CanvasNode) {
+  const size = videoRequestDimensions(node)
+  return `${size.width} × ${size.height}`
 }
 function setImageEditAuto() {
   imageEditDraft.imageAutoSize = true
@@ -1230,9 +1769,11 @@ async function testProviderConnection(
 ) {
   const service = channelsFor(kind).find((channel) => channel.id === channelId) || channelsFor(kind)[0]!
   const connectionTest = connectionState(service.id)
-  if (!service.apiKey.trim()) {
+  try {
+    validateServiceConfig(service, kind)
+  } catch (error) {
     connectionTest.status = 'error'
-    connectionTest.message = '请先填写该服务的 API Key'
+    connectionTest.message = error instanceof Error ? error.message : '模型服务配置不完整'
     return
   }
   connectionTest.status = 'testing'
@@ -1242,20 +1783,25 @@ async function testProviderConnection(
       headers: { Authorization: `Bearer ${service.apiKey.trim()}` },
     })
     const payload = await response.json().catch(() => null)
-    if (!response.ok) throw new Error(payload?.error?.message || `连接失败（HTTP ${response.status}）`)
+    if (!response.ok)
+      throw serviceResponseError(
+        response.status,
+        payload?.error?.message || payload?.message || '',
+        service,
+        kind,
+      )
     const models = Array.isArray(payload?.data) ? payload.data : []
     const available = models.some((item: { id?: string }) => item.id === service.model)
     connectionTest.status = 'success'
     connectionTest.message = `连接成功，读取到 ${models.length} 个模型；当前模型${available ? '可用' : '未在列表中找到'}`
   } catch (error) {
     connectionTest.status = 'error'
-    connectionTest.message = error instanceof Error ? error.message : '连接失败，请检查地址和密钥'
+    connectionTest.message = readableServiceError(error, service, kind)
   }
 }
 function writeImageResult(node: CanvasNode, imageUrl: string, prompt = '') {
   node.url = imageUrl
   if (prompt) node.imagePrompt = prompt
-  node.content = `由 ${serviceForNode(node).model} 生成 · ${new Date().toLocaleTimeString()}`
   node.version = (node.version || 0) + 1
 }
 function buildConfiguredImagePrompt(
@@ -1264,9 +1810,15 @@ function buildConfiguredImagePrompt(
 ) {
   const requestedWidth = node.imageWidth || 1024
   const requestedHeight = node.imageHeight || 1024
+  const currentPrompt = resolveMentionTokens(node.content, node.id).trim()
   const fixedSections = [
     `系统提示词：\n${settings.systemPrompt.slice(0, 6000)}`,
-    `当前画布要求：\n${settings.canvasPrompt.slice(0, 4000)}`,
+    ...(context.selectedRole
+      ? [
+          `当前节点角色：${context.selectedRole.name}\n${context.selectedRole.systemPrompt.slice(0, 6000)}`,
+        ]
+      : []),
+    `当前节点生成提示词：\n${currentPrompt || '（未填写，请根据直接上游输入完成生成）'}`,
     '当前节点任务：\n根据所有直接上游输入生成一张图片。文本节点内容是生图提示词，图片节点内容是视觉参考。',
     node.imageAutoSize
       ? '目标画面规格：自动。请根据提示词内容选择最合适的横向、竖向或方形构图，保留完整主体，不要裁切关键内容。'
@@ -1278,11 +1830,9 @@ function buildConfiguredImagePrompt(
     ? context.formattedInputs.slice(0, upstreamBudget)
     : '（无）'
   return [
-    fixedSections[0],
-    fixedSections[1],
+    ...fixedSections.slice(0, -2),
     `直接上游输入：\n${upstreamText}`,
-    fixedSections[2],
-    fixedSections[3],
+    ...fixedSections.slice(-2),
   ].join('\n\n')
 }
 async function callConfiguredImage(
@@ -1344,7 +1894,12 @@ async function callConfiguredImage(
   }
   if (!response.ok) {
     const error = await response.json().catch(() => null)
-    throw new Error(error?.error?.message || `图像服务返回 ${response.status}`)
+    throw serviceResponseError(
+      response.status,
+      error?.error?.message || error?.message || '',
+      service,
+      'image',
+    )
   }
   const payload = await response.json()
   const item = payload.data?.[0]
@@ -1369,7 +1924,12 @@ async function callConfiguredModel(node: CanvasNode, context: ReturnType<typeof 
   })
   if (!response.ok) {
     const error = await response.json().catch(() => null)
-    throw new Error(error?.error?.message || `模型服务返回 ${response.status}`)
+    throw serviceResponseError(
+      response.status,
+      error?.error?.message || error?.message || '',
+      service,
+      nodeServiceKind(node),
+    )
   }
   const payload = await response.json()
   return payload.choices?.[0]?.message?.content || '模型已完成请求，但未返回文本内容'
@@ -1436,7 +1996,7 @@ async function callConfiguredAudio(
       error?.message ||
       (await response.text().catch(() => '')) ||
       `音频服务返回 ${response.status}`
-    throw new Error(message)
+    throw serviceResponseError(response.status, message, service, 'audio')
   }
   const contentType = response.headers.get('content-type') || 'audio/mpeg'
   if (contentType.includes('application/json')) {
@@ -1454,6 +2014,92 @@ async function callConfiguredAudio(
     blob.type ? blob : new Blob([blob], { type: 'audio/mpeg' }),
   )
   return { audioUrl, input }
+}
+function waitForVideoPoll(milliseconds: number) {
+  return new Promise<void>((resolve) => window.setTimeout(resolve, milliseconds))
+}
+async function callConfiguredVideo(
+  node: CanvasNode,
+  context: ReturnType<typeof buildGenerationContext>,
+) {
+  const service = serviceForNode(node)
+  const ownPrompt = resolveMentionTokens(node.content, node.id).trim()
+  const prompt = [
+    settings.systemPrompt.trim(),
+    context.selectedRole ? `角色：${context.selectedRole.name}\n${context.selectedRole.systemPrompt}` : '',
+    context.formattedInputs ? `上游输入：\n${context.formattedInputs}` : '',
+    ownPrompt ? `当前节点任务：\n${ownPrompt}` : '',
+  ]
+    .filter(Boolean)
+    .join('\n\n')
+    .slice(0, 30000)
+  if (!prompt) throw new Error('请先输入视频生成提示词，或连接包含有效内容的上游节点')
+
+  const baseUrl = configuredApiBase(service)
+  const headers = {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${service.apiKey.trim()}`,
+  }
+  const createResponse = await fetch(`${baseUrl}/videos`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      model: service.model,
+      prompt,
+      size: `${videoRequestDimensions(node).width}x${videoRequestDimensions(node).height}`,
+      seconds: String(normalizedVideoDuration(node)),
+    }),
+  })
+  const createPayload = await createResponse.json().catch(() => null)
+  if (!createResponse.ok) {
+    const message =
+      createPayload?.error?.message || createPayload?.message || `视频服务返回 ${createResponse.status}`
+    throw serviceResponseError(createResponse.status, message, service, 'video')
+  }
+  const videoId = String(createPayload?.id || '')
+  if (!videoId) throw new Error('视频服务未返回任务 ID，无法查询生成进度')
+
+  let video = createPayload
+  for (let attempt = 0; attempt < 120; attempt += 1) {
+    const status = String(video?.status || '').toLowerCase()
+    if (status === 'completed') break
+    if (['failed', 'expired', 'cancelled'].includes(status)) {
+      throw new Error(video?.error?.message || video?.error || `视频生成任务${status}`)
+    }
+    const progress = Number(video?.progress)
+    node.resultText = Number.isFinite(progress) ? `视频生成中 · ${progress}%` : '视频生成中'
+    await waitForVideoPoll(10000)
+    const statusResponse = await fetch(`${baseUrl}/videos/${encodeURIComponent(videoId)}`, {
+      headers,
+    })
+    const statusPayload = await statusResponse.json().catch(() => null)
+    if (!statusResponse.ok) {
+      const message =
+        statusPayload?.error?.message ||
+        statusPayload?.message ||
+        `查询视频任务返回 ${statusResponse.status}`
+      throw serviceResponseError(statusResponse.status, message, service, 'video')
+    }
+    video = statusPayload
+  }
+  if (String(video?.status || '').toLowerCase() !== 'completed') {
+    throw new Error('视频生成等待超时，请稍后重新生成或检查服务端任务状态')
+  }
+
+  const contentResponse = await fetch(
+    `${baseUrl}/videos/${encodeURIComponent(videoId)}/content`,
+    { headers: { Authorization: headers.Authorization } },
+  )
+  if (!contentResponse.ok) {
+    const payload = await contentResponse.json().catch(() => null)
+    const message =
+      payload?.error?.message || payload?.message || `下载视频返回 ${contentResponse.status}`
+    throw serviceResponseError(contentResponse.status, message, service, 'video')
+  }
+  const blob = await contentResponse.blob()
+  if (!blob.size) throw new Error('视频服务返回了空文件')
+  const videoUrl = await blobToDataUrl(blob.type ? blob : new Blob([blob], { type: 'video/mp4' }))
+  return { videoUrl, prompt }
 }
 function createImageBatchResultNodes(
   source: CanvasNode,
@@ -1496,6 +2142,34 @@ function isGeneratedImage(node: CanvasNode) {
       (node.imagePrompt || node.lastGeneration || node.resultText?.startsWith('已通过')),
   )
 }
+function isMediaPlaceholderContent(value: string) {
+  const content = value.trim()
+  return (
+    !content ||
+    /(?:MB|KB)\s*·\s*本地资产/.test(content) ||
+    content.startsWith('由 ') ||
+    content.startsWith('00:00') ||
+    content === '拖入图片或点击上传' ||
+    content === '等待添加视频素材' ||
+    content === '准备生成动态画面'
+  )
+}
+function openMediaPrompt(node: CanvasNode) {
+  if (!['image', 'video', 'audio'].includes(node.kind)) return
+  if (isMediaPlaceholderContent(node.content)) {
+    node.content = node.kind === 'image' ? node.imagePrompt || '' : ''
+  }
+  mediaPromptNodeId.value = node.id
+  imageEditNodeId.value = null
+  imageSettingsNodeId.value = null
+  videoSettingsNodeId.value = null
+  audioMenuNodeId.value = null
+  selected.value = [node.id]
+  selectedEdge.value = null
+}
+function closeMediaPrompt() {
+  mediaPromptNodeId.value = null
+}
 function openImageEditor(node: CanvasNode) {
   if (!isGeneratedImage(node)) return
   if (node.status === 'running') {
@@ -1523,13 +2197,12 @@ function closeImageEditor() {
   imageEditNodeId.value = null
 }
 function isOutsideImageEditor(target: HTMLElement) {
-  if (target.closest('.image-edit-panel')) return false
-  const preview = target.closest('.image-preview.editable')
-  const previewNodeId = preview?.closest<HTMLElement>('.canvas-node')?.dataset.nodeId
-  return previewNodeId !== imageEditNodeId.value
+  if (target.closest('.media-generation-panel')) return false
+  const targetNodeId = target.closest<HTMLElement>('.canvas-node')?.dataset.nodeId
+  return targetNodeId !== mediaPromptNodeId.value
 }
 function startImageEditorOutsidePointer(event: PointerEvent) {
-  if (!imageEditNodeId.value || event.button !== 0) return
+  if (!mediaPromptNodeId.value || event.button !== 0) return
   const target = event.target as HTMLElement
   imageEditorOutsidePointer = {
     pointerId: event.pointerId,
@@ -1559,7 +2232,7 @@ function finishImageEditorOutsidePointer(event: PointerEvent) {
     !isOutsideImageEditor(event.target as HTMLElement)
   )
     return
-  closeImageEditor()
+  closeMediaPrompt()
 }
 function cancelImageEditorOutsidePointer() {
   imageEditorOutsidePointer = null
@@ -1612,6 +2285,12 @@ function syncAudioMetadata(event: Event, node: CanvasNode) {
   state.duration = Number.isFinite(audio.duration) ? audio.duration : 0
   audio.playbackRate = node.audioPlaybackRate || 1
   audio.volume = node.audioVolume ?? 1
+}
+function syncVideoMetadata(event: Event, node: CanvasNode) {
+  const video = event.currentTarget as HTMLVideoElement
+  if (!video.videoWidth || !video.videoHeight) return
+  node.imageWidth = video.videoWidth
+  node.imageHeight = video.videoHeight
 }
 function syncAudioProgress(event: Event, node: CanvasNode) {
   const audio = event.currentTarget as HTMLAudioElement
@@ -1729,7 +2408,15 @@ function resetFontScale() {
 }
 function toggleImageSettings(node: CanvasNode) {
   imageEditNodeId.value = null
+  mediaPromptNodeId.value = null
+  videoSettingsNodeId.value = null
   imageSettingsNodeId.value = imageSettingsNodeId.value === node.id ? null : node.id
+}
+function toggleVideoSettings(node: CanvasNode) {
+  imageEditNodeId.value = null
+  mediaPromptNodeId.value = null
+  imageSettingsNodeId.value = null
+  videoSettingsNodeId.value = videoSettingsNodeId.value === node.id ? null : node.id
 }
 function createImageVariationResultNodes(
   source: CanvasNode,
@@ -1790,7 +2477,16 @@ async function runImageVariation(source: CanvasNode) {
   normalizeImageEditCount()
   const prompt = imageEditDraft.prompt.trim()
   if (!prompt) return flash('请先填写图片修改提示词')
-  if (!serviceForNode(source).apiKey.trim()) return flash('请先配置所选图片模型的 API Key')
+  const variationService = serviceForNode(source)
+  try {
+    validateServiceConfig(variationService, 'image')
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '图片模型配置不完整'
+    source.status = 'error'
+    source.resultText = message
+    flash(message)
+    return
+  }
   const draft = { ...imageEditDraft, prompt }
   const requestNode: CanvasNode = {
     ...source,
@@ -1802,6 +2498,7 @@ async function runImageVariation(source: CanvasNode) {
   }
   const context = buildGenerationContext(source)
   imageEditNodeId.value = null
+  mediaPromptNodeId.value = null
   imageVariationRunningIds.value = [...imageVariationRunningIds.value, source.id]
   flash(`正在生成 ${draft.imageCount} 张修改结果`)
   try {
@@ -1816,14 +2513,35 @@ async function runImageVariation(source: CanvasNode) {
     selected.value = children[0] ? [children[0].id] : [source.id]
     flash(`图片修改完成 · 新增 ${children.length} 张结果`)
   } catch (error) {
+    const message = readableServiceError(error, variationService, 'image')
     Object.assign(imageEditDraft, draft)
-    imageEditNodeId.value = source.id
-    flash(error instanceof Error ? error.message : '图片修改失败，请检查图片服务配置')
+    mediaPromptNodeId.value = source.id
+    source.status = 'error'
+    source.resultText = message
+    flash(message)
   } finally {
     imageVariationRunningIds.value = imageVariationRunningIds.value.filter(
       (id) => id !== source.id,
     )
   }
+}
+async function runMediaNode(node: CanvasNode) {
+  if (!['image', 'video', 'audio'].includes(node.kind)) return
+  if (node.kind === 'image' && node.url) {
+    const context = buildGenerationContext(node)
+    Object.assign(imageEditDraft, {
+      nodeId: node.id,
+      prompt: node.content.trim() || buildConfiguredImagePrompt(node, context),
+      imageWidth: node.imageWidth || 1024,
+      imageHeight: node.imageHeight || 1024,
+      imageAutoSize: node.imageAutoSize ?? true,
+      imageCount: normalizedImageCount(node),
+    })
+    await runImageVariation(node)
+    return
+  }
+  mediaPromptNodeId.value = null
+  await runNode(node)
 }
 async function runNode(node: CanvasNode) {
   if (node.kind === 'image' && imageVariationRunningIds.value.includes(node.id)) {
@@ -1835,7 +2553,8 @@ async function runNode(node: CanvasNode) {
   const requestedPrompt = node.content
   node.status = 'running'
   try {
-    if (service.apiKey && node.kind === 'image') {
+    validateServiceConfig(service, nodeServiceKind(node))
+    if (node.kind === 'image') {
       const imageCount = normalizedImageCount(node)
       node.imageCount = imageCount
       const ownReferenceUrl = node.url || ''
@@ -1863,7 +2582,7 @@ async function runNode(node: CanvasNode) {
       )
       return
     }
-    if (service.apiKey && node.kind === 'audio') {
+    if (node.kind === 'audio') {
       const { audioUrl, input } = await callConfiguredAudio(node, context)
       const inputVersions = Object.fromEntries(
         context.upstream.map((item) => [item.id, item.version]),
@@ -1883,19 +2602,26 @@ async function runNode(node: CanvasNode) {
       flash(`音频生成完成 · 使用 ${context.upstream.length} 个上游输入`)
       return
     }
-    const result = service.apiKey
-      ? await callConfiguredModel(node, context)
-      : await new Promise<string>((resolve) =>
-          window.setTimeout(
-            () =>
-              resolve(
-                context.upstream.length
-                  ? `本地演示：已结合 ${context.upstream.length} 个直接上游输入（${context.upstream.map((item) => item.title).join('、')}）`
-                  : '本地演示：已根据当前节点提示词生成结果（未使用其他画布节点）',
-              ),
-            900,
-          ),
-        )
+    if (node.kind === 'video') {
+      const { videoUrl, prompt } = await callConfiguredVideo(node, context)
+      const inputVersions = Object.fromEntries(
+        context.upstream.map((item) => [item.id, item.version]),
+      )
+      node.url = videoUrl
+      node.status = 'success'
+      node.lastGeneration = {
+        generatedAt: new Date().toISOString(),
+        inputNodeIds: context.upstream.map((item) => item.id),
+        inputVersions,
+        prompt,
+        model: service.model,
+      }
+      node.resultText = `已通过 ${service.model} 生成视频`
+      node.version = (node.version || 0) + 1
+      flash(`视频生成完成 · 使用 ${context.upstream.length} 个上游输入`)
+      return
+    }
+    const result = await callConfiguredModel(node, context)
     node.status = 'success'
     const inputVersions = Object.fromEntries(context.upstream.map((item) => [item.id, item.version]))
     node.lastGeneration = {
@@ -1909,9 +2635,211 @@ async function runNode(node: CanvasNode) {
     node.version = (node.version || 0) + 1
     flash(`生成完成 · 使用 ${context.upstream.length} 个上游输入`)
   } catch (error) {
+    const message = readableServiceError(error, service, nodeServiceKind(node))
     node.status = 'error'
-    node.resultText = error instanceof Error ? error.message : '生成失败，请检查模型配置'
-    flash('生成失败，请检查模型服务配置')
+    node.resultText = message
+    flash(message)
+  }
+}
+function openNodeFilePicker(node: CanvasNode) {
+  addFileTargetNodeId.value = node.id
+  if (addFileInput.value) {
+    addFileInput.value.removeAttribute('accept')
+    addFileInput.value.click()
+  }
+}
+const supportedUploadExtensions: Record<ServiceKind, string[]> = {
+  text: [
+    'txt', 'md', 'markdown', 'json', 'csv', 'log', 'xml', 'html', 'htm', 'css', 'js', 'mjs',
+    'cjs', 'ts', 'tsx', 'jsx', 'vue', 'py', 'java', 'c', 'cpp', 'h', 'hpp', 'go', 'rs', 'yaml',
+    'yml', 'toml', 'ini', 'conf',
+  ],
+  image: ['jpg', 'jpeg', 'jpe', 'png', 'webp', 'gif', 'bmp', 'avif'],
+  video: ['mp4', 'webm', 'mov', 'm4v', 'avi', 'mkv'],
+  audio: ['mp3', 'wav', 'm4a', 'aac', 'ogg', 'flac'],
+}
+function uploadedFileKind(file: File): ServiceKind | undefined {
+  const extension = file.name.split('.').pop()?.toLowerCase() || ''
+  if (
+    file.type.startsWith('text/') ||
+    ['application/json', 'application/xml', 'application/javascript'].includes(file.type) ||
+    supportedUploadExtensions.text.includes(extension)
+  ) return 'text'
+  if (file.type.startsWith('image/') || supportedUploadExtensions.image.includes(extension))
+    return 'image'
+  if (file.type.startsWith('video/') || supportedUploadExtensions.video.includes(extension))
+    return 'video'
+  if (file.type.startsWith('audio/') || supportedUploadExtensions.audio.includes(extension))
+    return 'audio'
+  return undefined
+}
+function uploadedNodeFromFile(
+  file: File,
+  kind: ServiceKind,
+  value: string,
+  x: number,
+  y: number,
+): CanvasNode {
+  const isTextFile = kind === 'text'
+  return {
+    id: `node-${uid()}`,
+    kind,
+    title: file.name,
+    x,
+    y,
+    width: isTextFile ? 360 : 300,
+    height: isTextFile ? 300 : undefined,
+    content: isTextFile
+      ? value
+      : `${file.name} · ${(file.size / 1024 / 1024).toFixed(1)} MB · 本地资产`,
+    url: isTextFile ? undefined : value,
+    status: 'idle',
+    version: 1,
+    createdAt: Date.now(),
+    imageWidth: kind === 'image' ? 1024 : undefined,
+    imageHeight: kind === 'image' ? 1024 : undefined,
+    imageAutoSize: kind === 'image' ? true : undefined,
+    imageCount: kind === 'image' ? 1 : undefined,
+    videoAspectWidth: kind === 'video' ? 16 : undefined,
+    videoAspectHeight: kind === 'video' ? 9 : undefined,
+    videoAutoSize: kind === 'video' ? true : undefined,
+    videoDuration: kind === 'video' ? 5 : undefined,
+    videoResolution: kind === 'video' ? 720 : undefined,
+  }
+}
+function openStandaloneFilePicker() {
+  showTemplatePanel.value = false
+  standaloneFileInput.value?.click()
+}
+async function addStandaloneFile(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) return
+  const kind = uploadedFileKind(file)
+  if (!kind)
+    return flash(`无法为“${file.name}”创建控件：暂不支持该文件类型`)
+  try {
+    const value = kind === 'text' ? await readUploadedTextFile(file) : await fileAsDataUrl(file)
+    if (!value) throw new Error(`无法读取文件“${file.name}”`)
+    const center = screenToCanvas(window.innerWidth * 0.5, window.innerHeight * 0.5)
+    const node = uploadedNodeFromFile(file, kind, value, center.x - (kind === 'text' ? 180 : 150), center.y - 150)
+    checkpoint()
+    nodes.value.push(node)
+    selected.value = [node.id]
+    selectedEdge.value = null
+    flash(`已上传“${file.name}”并创建${serviceKindLabel(kind)}控件`)
+  } catch (error) {
+    flash(error instanceof Error ? error.message : `无法为“${file.name}”创建控件`)
+  }
+}
+function fileAsDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result || ''))
+    reader.onerror = () => reject(new Error('无法读取所选文件'))
+    reader.readAsDataURL(file)
+  })
+}
+function decodedTextLooksValid(value: string) {
+  if (value.includes('\u0000')) return false
+  if (!value.length) return true
+  let invalidControls = 0
+  let replacementCharacters = 0
+  for (const character of value) {
+    const code = character.charCodeAt(0)
+    if (code < 32 && !['\n', '\r', '\t', '\f'].includes(character)) invalidControls += 1
+    if (character === '\uFFFD') replacementCharacters += 1
+  }
+  return (
+    invalidControls / value.length < 0.01 &&
+    replacementCharacters / value.length < 0.01
+  )
+}
+async function readUploadedTextFile(file: File) {
+  try {
+    const nativeText = (await file.text()).replace(/^\uFEFF/, '')
+    if (nativeText.trim() && decodedTextLooksValid(nativeText)) return nativeText
+  } catch {
+    // Fall back to explicit byte decoding below.
+  }
+  let bytes: ArrayBuffer
+  try {
+    bytes = await file.arrayBuffer()
+  } catch {
+    throw new Error(`无法读取文本文件“${file.name}”`)
+  }
+  if (!bytes.byteLength)
+    throw new Error(`文本文件“${file.name}”是空文件，没有可读取的文字内容`)
+  const data = new Uint8Array(bytes)
+  const encodings: string[] = []
+  if (data[0] === 0xff && data[1] === 0xfe) encodings.push('utf-16le')
+  else if (data[0] === 0xfe && data[1] === 0xff) encodings.push('utf-16be')
+  else if (data[0] === 0xef && data[1] === 0xbb && data[2] === 0xbf) encodings.push('utf-8')
+  encodings.push('utf-8', 'gb18030', 'utf-16le', 'utf-16be')
+  for (const encoding of [...new Set(encodings)]) {
+    try {
+      const decoded = new TextDecoder(encoding, { fatal: true })
+        .decode(data)
+        .replace(/^\uFEFF/, '')
+      if (decoded.trim() && decodedTextLooksValid(decoded)) return decoded
+    } catch {
+      // Try the next common text encoding.
+    }
+  }
+  throw new Error(
+    `无法读取文本文件“${file.name}”：文件可能损坏、不是纯文本，或使用了不支持的字符编码`,
+  )
+}
+async function addFileToNode(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  const targetId = addFileTargetNodeId.value
+  input.value = ''
+  addFileTargetNodeId.value = null
+  if (!file || !targetId) return
+  const targetNode = nodeMap.value.get(targetId)
+  if (!targetNode) return flash('目标控件已不存在')
+  const fileKind = uploadedFileKind(file)
+  if (!fileKind) {
+    flash('暂不支持该文件类型，请选择文本、图片、视频或音频文件')
+    return
+  }
+  try {
+    const isTextFile = fileKind === 'text'
+    const value = isTextFile ? await readUploadedTextFile(file) : await fileAsDataUrl(file)
+    const nodeWidth = fileKind === 'text' ? 360 : 300
+    const existingInputCount = incomingEdges(targetNode.id).length
+    const newNode = uploadedNodeFromFile(
+      file,
+      fileKind,
+      value,
+      targetNode.x - nodeWidth - 120,
+      targetNode.y + existingInputCount * 38,
+    )
+    const nextOrder =
+      Math.max(0, ...incomingEdges(targetNode.id).map((edge) => edge.order)) + 1
+    checkpoint()
+    nodes.value.push(newNode)
+    edges.value.push({
+      id: `edge-${uid()}`,
+      source: newNode.id,
+      target: targetNode.id,
+      sourceHandle: 'output',
+      targetHandle: 'input',
+      order: nextOrder,
+      enabled: true,
+    })
+    selected.value = [newNode.id]
+    selectedEdge.value = null
+    markNodeChanged(targetNode)
+    flash(
+      isTextFile
+        ? `已读取 ${value.length} 字，并在左侧创建文本节点`
+        : `已在左侧创建${serviceKindLabel(fileKind)}节点并连接到“${targetNode.title}”`,
+    )
+  } catch (error) {
+    flash(error instanceof Error ? error.message : '文件添加失败')
   }
 }
 function replaceSelectedImage(event: Event) {
@@ -1929,8 +2857,9 @@ function replaceSelectedImage(event: Event) {
     node.resultText = undefined
     node.status = 'idle'
     imageEditNodeId.value = null
+    mediaPromptNodeId.value = null
     node.version = (node.version || 0) + 1
-    flash('图片已替换，下游结果可能已过期')
+    flash('图片已替换，下游结果需要重新生成')
   }
   reader.readAsDataURL(file)
   ;(event.target as HTMLInputElement).value = ''
@@ -2159,6 +3088,19 @@ type SkippedExportAsset = {
   url: string
   reason: string
 }
+type ImportedCanvasPackage = {
+  format?: unknown
+  version?: unknown
+  name?: unknown
+  nodes?: unknown
+  edges?: unknown
+  viewport?: unknown
+  files?: unknown
+}
+const MAX_IMPORT_ARCHIVE_BYTES = 512 * 1024 * 1024
+const MAX_IMPORT_ENTRIES = 10000
+const MAX_IMPORT_NODES = 5000
+const MAX_IMPORT_EDGES = 10000
 const crcTable = Array.from({ length: 256 }, (_, value) => {
   let crc = value
   for (let bit = 0; bit < 8; bit += 1) crc = crc & 1 ? 0xedb88320 ^ (crc >>> 1) : crc >>> 1
@@ -2242,6 +3184,273 @@ function createZip(entries: ZipEntry[]) {
     archive.byteOffset + archive.byteLength,
   ) as ArrayBuffer
   return new Blob([archiveBuffer], { type: 'application/zip' })
+}
+function isSafeZipPath(path: string) {
+  if (!path || path.includes('\\') || path.startsWith('/') || /^[a-z]:/i.test(path)) return false
+  return path.split('/').every((part) => part !== '..' && part !== '.')
+}
+function parseStoredZip(buffer: ArrayBuffer) {
+  if (buffer.byteLength > MAX_IMPORT_ARCHIVE_BYTES) {
+    throw new Error('压缩包超过 512 MB，无法导入')
+  }
+  const bytes = new Uint8Array(buffer)
+  const view = new DataView(buffer)
+  if (bytes.length < 22) throw new Error('ZIP 文件不完整')
+  const endOffset = bytes.length - 22
+  if (view.getUint32(endOffset, true) !== 0x06054b50 || view.getUint16(endOffset + 20, true) !== 0) {
+    throw new Error('ZIP 结束目录损坏或包含不兼容的附加数据')
+  }
+  const entryCount = view.getUint16(endOffset + 10, true)
+  const centralSize = view.getUint32(endOffset + 12, true)
+  const centralOffset = view.getUint32(endOffset + 16, true)
+  if (
+    view.getUint16(endOffset + 4, true) !== 0 ||
+    view.getUint16(endOffset + 6, true) !== 0 ||
+    view.getUint16(endOffset + 8, true) !== entryCount ||
+    centralOffset + centralSize !== endOffset
+  ) throw new Error('ZIP 中央目录无效')
+  const decoder = new TextDecoder('utf-8', { fatal: true })
+  const entries = new Map<string, Uint8Array>()
+  let offset = 0
+  while (offset < centralOffset) {
+    const signature = view.getUint32(offset, true)
+    if (signature !== 0x04034b50 || offset + 30 > bytes.length) {
+      throw new Error('ZIP 结构损坏或不是本项目导出的压缩包')
+    }
+    const flags = view.getUint16(offset + 6, true)
+    const method = view.getUint16(offset + 8, true)
+    const expectedCrc = view.getUint32(offset + 14, true)
+    const compressedSize = view.getUint32(offset + 18, true)
+    const uncompressedSize = view.getUint32(offset + 22, true)
+    const nameLength = view.getUint16(offset + 26, true)
+    const extraLength = view.getUint16(offset + 28, true)
+    if (flags & 0x0001) throw new Error('不支持加密 ZIP')
+    if (flags & 0x0008) throw new Error('ZIP 使用了不兼容的数据描述符')
+    if (method !== 0) throw new Error('压缩方式不匹配，请导入本项目“导出画布”生成的 ZIP')
+    if (compressedSize !== uncompressedSize) throw new Error('ZIP 文件尺寸声明不一致')
+    const nameStart = offset + 30
+    const dataStart = nameStart + nameLength + extraLength
+    const dataEnd = dataStart + compressedSize
+    if (!nameLength || dataStart > bytes.length || dataEnd > bytes.length) {
+      throw new Error('ZIP 文件条目不完整')
+    }
+    let name = ''
+    try {
+      name = decoder.decode(bytes.subarray(nameStart, nameStart + nameLength))
+    } catch {
+      throw new Error('ZIP 中存在无法读取的文件名')
+    }
+    if (!isSafeZipPath(name)) throw new Error(`ZIP 中存在不安全路径：${name}`)
+    if (entries.has(name)) throw new Error(`ZIP 中存在重复文件：${name}`)
+    const data = bytes.slice(dataStart, dataEnd)
+    if (crc32(data) !== expectedCrc) throw new Error(`文件校验失败：${name}`)
+    entries.set(name, data)
+    if (entries.size > MAX_IMPORT_ENTRIES) throw new Error('ZIP 内文件数量过多')
+    offset = dataEnd
+  }
+  if (offset !== centralOffset || !entries.size || entries.size !== entryCount) {
+    throw new Error('ZIP 目录数量或位置不一致')
+  }
+  let directoryOffset = centralOffset
+  for (let index = 0; index < entryCount; index += 1) {
+    if (directoryOffset + 46 > endOffset || view.getUint32(directoryOffset, true) !== 0x02014b50) {
+      throw new Error('ZIP 中央目录条目损坏')
+    }
+    const nameLength = view.getUint16(directoryOffset + 28, true)
+    const extraLength = view.getUint16(directoryOffset + 30, true)
+    const commentLength = view.getUint16(directoryOffset + 32, true)
+    directoryOffset += 46 + nameLength + extraLength + commentLength
+  }
+  if (directoryOffset !== endOffset) throw new Error('ZIP 中央目录尺寸不一致')
+  return entries
+}
+function mimeTypeForPath(path: string) {
+  const extension = path.split('.').pop()?.toLowerCase()
+  const known: Record<string, string> = {
+    jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp',
+    gif: 'image/gif', svg: 'image/svg+xml', mp4: 'video/mp4', webm: 'video/webm',
+    mov: 'video/quicktime', mp3: 'audio/mpeg', wav: 'audio/wav', ogg: 'audio/ogg',
+    m4a: 'audio/mp4', aac: 'audio/aac', flac: 'audio/flac',
+  }
+  return known[extension || ''] || 'application/octet-stream'
+}
+function validateImportedCanvas(raw: ImportedCanvasPackage) {
+  if (raw.format !== 'infinite-canvas-export' || raw.version !== 1) {
+    throw new Error('canvas.json 格式或版本不匹配')
+  }
+  if (!Array.isArray(raw.nodes) || !Array.isArray(raw.edges)) {
+    throw new Error('canvas.json 缺少节点或连线数据')
+  }
+  if (raw.nodes.length > MAX_IMPORT_NODES || raw.edges.length > MAX_IMPORT_EDGES) {
+    throw new Error('画布中的节点或连线数量超过导入上限')
+  }
+  const validKinds = new Set<NodeKind>(['text', 'image', 'video', 'audio', 'config'])
+  const nodeIds = new Set<string>()
+  for (const value of raw.nodes) {
+    const node = value as Partial<CanvasNode>
+    if (!node || typeof node !== 'object') throw new Error('节点数据格式错误')
+    if (typeof node.id !== 'string' || !node.id.trim() || nodeIds.has(node.id)) {
+      throw new Error('节点 ID 缺失或重复')
+    }
+    if (!validKinds.has(node.kind as NodeKind)) throw new Error(`节点类型无效：${node.id}`)
+    if (typeof node.title !== 'string' || typeof node.content !== 'string') {
+      throw new Error(`节点文字字段无效：${node.id}`)
+    }
+    if (![node.x, node.y, node.width].every((value) => Number.isFinite(value)) || Number(node.width) <= 0) {
+      throw new Error(`节点位置或尺寸无效：${node.id}`)
+    }
+    if (node.height != null && (!Number.isFinite(node.height) || node.height <= 0)) {
+      throw new Error(`节点高度无效：${node.id}`)
+    }
+    if (node.url != null && typeof node.url !== 'string') throw new Error(`节点资源地址无效：${node.id}`)
+    nodeIds.add(node.id)
+  }
+  const edgeIds = new Set<string>()
+  for (const value of raw.edges) {
+    const edge = value as Partial<Edge>
+    if (!edge || typeof edge !== 'object' || typeof edge.id !== 'string' || !edge.id.trim()) {
+      throw new Error('连线 ID 缺失')
+    }
+    if (edgeIds.has(edge.id)) throw new Error(`连线 ID 重复：${edge.id}`)
+    if (typeof edge.source !== 'string' || typeof edge.target !== 'string') {
+      throw new Error(`连线端点无效：${edge.id}`)
+    }
+    if (edge.source === edge.target || !nodeIds.has(edge.source) || !nodeIds.has(edge.target)) {
+      throw new Error(`连线引用了无效节点：${edge.id}`)
+    }
+    if (edge.order != null && !Number.isFinite(edge.order)) throw new Error(`连线顺序无效：${edge.id}`)
+    edgeIds.add(edge.id)
+  }
+  if (raw.viewport != null) {
+    const importedViewport = raw.viewport as Partial<typeof viewport>
+    if (
+      typeof importedViewport !== 'object' ||
+      ![importedViewport.x, importedViewport.y, importedViewport.zoom].every((value) => Number.isFinite(value)) ||
+      Number(importedViewport.zoom) <= 0
+    ) throw new Error('画布视口数据无效')
+  }
+  if (raw.files != null && !Array.isArray(raw.files)) throw new Error('资源清单格式无效')
+  return {
+    name: typeof raw.name === 'string' ? raw.name : '导入的画布',
+    nodes: JSON.parse(JSON.stringify(raw.nodes)) as CanvasNode[],
+    edges: JSON.parse(JSON.stringify(raw.edges)) as Edge[],
+    viewport: raw.viewport as Partial<typeof viewport> | undefined,
+    files: (raw.files || []) as Array<{ path?: unknown; mimeType?: unknown; size?: unknown }>,
+  }
+}
+function uniqueImportedCanvasName(value: string) {
+  const base = normalizeCanvasName(value || '导入的画布')
+  const usedNames = new Set(canvasIndex.value.map((item) => item.name))
+  if (!usedNames.has(base)) return base
+  let suffix = 2
+  let candidate = `${base}（导入）`
+  while (usedNames.has(candidate)) {
+    candidate = `${base}（导入 ${suffix}）`
+    suffix += 1
+  }
+  return candidate
+}
+async function importCanvasArchive(event: Event) {
+  const input = event.currentTarget as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) return
+  showProjectMenu.value = false
+  showCanvasList.value = false
+  try {
+    if (!file.name.toLowerCase().endsWith('.zip')) throw new Error('请选择 .zip 画布压缩包')
+    if (file.size > MAX_IMPORT_ARCHIVE_BYTES) throw new Error('压缩包超过 512 MB，无法导入')
+    flash('正在校验并导入画布…')
+    const zipEntries = parseStoredZip(await file.arrayBuffer())
+    for (const path of zipEntries.keys()) {
+      if (path !== 'canvas.json' && !path.startsWith('file/')) {
+        throw new Error(`压缩包中存在不属于画布的文件：${path}`)
+      }
+    }
+    const canvasBytes = zipEntries.get('canvas.json')
+    if (!canvasBytes) throw new Error('压缩包根目录缺少 canvas.json')
+    let raw: ImportedCanvasPackage
+    try {
+      raw = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(canvasBytes))
+    } catch {
+      throw new Error('canvas.json 不是可读取的 UTF-8 JSON 文件')
+    }
+    const imported = validateImportedCanvas(raw)
+    const manifest = new Map<string, { mimeType?: string; size?: number }>()
+    for (const item of imported.files) {
+      if (typeof item.path !== 'string' || !item.path.startsWith('file/') || !isSafeZipPath(item.path)) {
+        throw new Error('资源清单中存在无效路径')
+      }
+      if (item.size != null && (!Number.isFinite(item.size) || Number(item.size) < 0)) {
+        throw new Error(`资源尺寸无效：${item.path}`)
+      }
+      const nextManifestItem = {
+        mimeType: typeof item.mimeType === 'string' ? item.mimeType : undefined,
+        size: typeof item.size === 'number' ? item.size : undefined,
+      }
+      const existingManifestItem = manifest.get(item.path)
+      if (
+        existingManifestItem &&
+        (existingManifestItem.mimeType !== nextManifestItem.mimeType ||
+          existingManifestItem.size !== nextManifestItem.size)
+      ) throw new Error(`资源清单中的重复记录不一致：${item.path}`)
+      manifest.set(item.path, nextManifestItem)
+    }
+    for (const [path, declared] of manifest) {
+      const data = zipEntries.get(path)
+      if (!data) throw new Error(`资源清单中的文件不存在：${path}`)
+      if (declared.size != null && declared.size !== data.length) {
+        throw new Error(`资源尺寸与清单不一致：${path}`)
+      }
+    }
+    for (const node of imported.nodes) {
+      if (!node.url?.startsWith('file/')) continue
+      const data = zipEntries.get(node.url)
+      if (!data) throw new Error(`节点“${node.title}”引用的文件不存在：${node.url}`)
+      const declared = manifest.get(node.url)
+      if (!declared) throw new Error(`节点“${node.title}”的资源未登记在文件清单中`)
+      if (declared?.size != null && declared.size !== data.length) {
+        throw new Error(`资源尺寸与清单不一致：${node.url}`)
+      }
+      const mimeType = declared?.mimeType || mimeTypeForPath(node.url)
+      node.url = await blobToDataUrl(new Blob([new Uint8Array(data)], { type: mimeType }))
+    }
+    saveNow(true)
+    const importedId = `canvas-${uid()}`
+    const importedName = uniqueImportedCanvasName(imported.name)
+    const updatedAt = Date.now()
+    const payload = {
+      name: importedName,
+      nodes: imported.nodes,
+      edges: imported.edges,
+      viewport: imported.viewport || { x: 0, y: 0, zoom: 1 },
+      updatedAt,
+    }
+    const storageKeyForImport = `infinite:canvas:${importedId}`
+    try {
+      localStorage.setItem(storageKeyForImport, JSON.stringify(payload))
+    } catch (error) {
+      localStorage.removeItem(storageKeyForImport)
+      throw new Error(error instanceof DOMException && error.name === 'QuotaExceededError'
+        ? '浏览器本地存储空间不足，画布未导入'
+        : '无法写入浏览器本地存储，画布未导入')
+    }
+    canvasId.value = importedId
+    applyCanvasPayload(payload)
+    localStorage.setItem('infinite:last-canvas', importedId)
+    upsertCanvasIndex(importedId, importedName, updatedAt, imported.nodes.length, imported.edges.length)
+    selected.value = []
+    selectedEdge.value = null
+    history.value = []
+    future.value = []
+    imageEditNodeId.value = null
+    mediaPromptNodeId.value = null
+    imageSettingsNodeId.value = null
+    videoSettingsNodeId.value = null
+    flash(`已导入画布“${importedName}”：${imported.nodes.length} 个节点，${imported.edges.length} 条连线`)
+  } catch (error) {
+    flash(`导入失败：${error instanceof Error ? error.message : '无法读取画布压缩包'}`)
+  }
 }
 function safeFileBaseName(value: string) {
   return value
@@ -2428,7 +3637,9 @@ function switchCanvas(targetId: string) {
     history.value = []
     future.value = []
     imageEditNodeId.value = null
+    mediaPromptNodeId.value = null
     imageSettingsNodeId.value = null
+    videoSettingsNodeId.value = null
     showCanvasList.value = false
     showProjectMenu.value = false
     flash(`已切换到“${canvasName.value}”`)
@@ -2454,6 +3665,7 @@ function newCanvas() {
   selectedEdge.value = null
   history.value = []
   future.value = []
+  mediaPromptNodeId.value = null
   resetView()
   showProjectMenu.value = false
   showCanvasList.value = false
@@ -2502,16 +3714,33 @@ function deleteCurrentCanvas() {
   history.value = []
   future.value = []
   imageEditNodeId.value = null
+  mediaPromptNodeId.value = null
   imageSettingsNodeId.value = null
+  videoSettingsNodeId.value = null
   showRenameCanvas.value = false
   showCanvasList.value = false
   showProjectMenu.value = false
   flash(`已删除画布“${deletedName}”`)
 }
+function deleteCanvasFromList(item: CanvasIndexItem) {
+  if (item.id === canvasId.value) {
+    deleteCurrentCanvas()
+    return
+  }
+  if (!window.confirm(`确定删除画布“${item.name}”吗？此操作无法撤销。`)) return
+  localStorage.removeItem(`infinite:canvas:${item.id}`)
+  canvasIndex.value = canvasIndex.value.filter((canvas) => canvas.id !== item.id)
+  persistCanvasIndex()
+  flash(`已删除画布“${item.name}”`)
+}
 function clearLocalData() {
   localStorage.clear()
+  inputMode.value = 'mouse'
   canvasIndex.value = []
   canvasTemplates.value = []
+  canvasRoles.value = []
+  savedPrompts.value = []
+  closePromptLibrary()
   Object.keys(sessionStorage)
     .filter((key) => key === 'infinite:api-key' || key.startsWith('infinite:api-key:'))
     .forEach((key) => sessionStorage.removeItem(key))
@@ -2571,6 +3800,15 @@ function applyCanvasPayload(parsed: {
       node.kind === 'image'
         ? Math.min(8, Math.max(1, Math.round(node.imageCount || 1)))
         : node.imageCount,
+    videoAspectWidth:
+      node.kind === 'video' ? Math.min(100, Math.max(1, Math.round(node.videoAspectWidth || 16))) : node.videoAspectWidth,
+    videoAspectHeight:
+      node.kind === 'video' ? Math.min(100, Math.max(1, Math.round(node.videoAspectHeight || 9))) : node.videoAspectHeight,
+    videoAutoSize: node.kind === 'video' ? node.videoAutoSize ?? true : node.videoAutoSize,
+    videoDuration:
+      node.kind === 'video' ? Math.min(15, Math.max(1, Math.round(node.videoDuration || 5))) : node.videoDuration,
+    videoResolution:
+      node.kind === 'video' ? (node.videoResolution === 480 ? 480 : 720) : node.videoResolution,
   }))
   edges.value = (parsed.edges || []).map((edge: Edge, index: number) => ({
     ...edge,
@@ -2582,6 +3820,8 @@ function applyCanvasPayload(parsed: {
 }
 function loadLocal() {
   loadCanvasTemplates()
+  loadCanvasRoles()
+  loadSavedPrompts()
   const savedSettings = localStorage.getItem('infinite:settings')
   const parsedSettings = savedSettings ? JSON.parse(savedSettings) : null
   if (parsedSettings) {
@@ -2599,6 +3839,7 @@ function loadLocal() {
     delete baseSettings.imageModel
     delete baseSettings.temperature
     delete baseSettings.maxTokens
+    delete baseSettings.canvasPrompt
     Object.assign(settings, baseSettings)
     if (savedModelServices) {
       serviceOptions.forEach(({ kind }) => {
@@ -2688,7 +3929,11 @@ function loadLocal() {
   )
 }
 function onKeydown(event: KeyboardEvent) {
-  const typing = ['INPUT', 'TEXTAREA', 'SELECT'].includes((event.target as HTMLElement).tagName)
+  const target = event.target as HTMLElement
+  const typing =
+    ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) ||
+    target.isContentEditable ||
+    Boolean(target.closest('[contenteditable="true"], .node-prompt-editor'))
   if (typing) return
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') {
     event.preventDefault()
@@ -2701,6 +3946,7 @@ function onKeydown(event: KeyboardEvent) {
   else if (event.key === 'Escape') {
     linkingFrom.value = null
     imageEditNodeId.value = null
+    mediaPromptNodeId.value = null
   }
   else if (event.key === 'v') mode.value = 'select'
   else if (event.key === 'h') mode.value = 'hand'
@@ -2713,10 +3959,12 @@ watch([nodes, edges, () => viewport.x, () => viewport.y, () => viewport.zoom], (
   )
 }, { deep: true })
 watch(fontScale, (value) => localStorage.setItem(FONT_SCALE_KEY, String(value)))
+watch(inputMode, (value) => localStorage.setItem(INPUT_MODE_KEY, value))
 onMounted(() => {
   loadLocal()
   enableFontScaling()
   updateCanvasSize()
+  startNodeSizeObserver()
   window.addEventListener('keydown', onKeydown)
   window.addEventListener('resize', updateCanvasSize)
   window.addEventListener('pointerdown', startImageEditorOutsidePointer, true)
@@ -2726,8 +3974,11 @@ onMounted(() => {
   window.addEventListener('pointerdown', closeAudioVolumeOutside, true)
   window.addEventListener('click', closeProjectMenuOutside)
   window.addEventListener('click', closeAudioMenuOutside)
+  window.addEventListener('click', closeTextPromptSaveOutside)
 })
 onUnmounted(() => {
+  nodeSizeObserver?.disconnect()
+  nodeSizeObserver = null
   window.removeEventListener('keydown', onKeydown)
   window.removeEventListener('resize', updateCanvasSize)
   window.removeEventListener('pointerdown', startImageEditorOutsidePointer, true)
@@ -2737,16 +3988,15 @@ onUnmounted(() => {
   window.removeEventListener('pointerdown', closeAudioVolumeOutside, true)
   window.removeEventListener('click', closeProjectMenuOutside)
   window.removeEventListener('click', closeAudioMenuOutside)
+  window.removeEventListener('click', closeTextPromptSaveOutside)
 })
 </script>
 
 <template>
   <div class="app-shell" :style="{ '--font-scale': fontScale }">
     <header class="topbar">
-      <div class="brand-mark">∞</div>
       <div class="project-wrap">
         <button class="project-button" @click="showProjectMenu = !showProjectMenu">
-          <span class="project-dot"></span>
           <span>{{ canvasName }}</span>
           <small>⌄</small>
         </button>
@@ -2772,24 +4022,46 @@ onUnmounted(() => {
             <small>{{ canvasIndex.length }} ›</small>
           </button>
           <div v-if="showCanvasList" class="canvas-picker">
-            <button
+            <div
               v-for="item in canvasIndex"
               :key="item.id"
-              class="canvas-picker-item"
+              class="canvas-picker-row"
               :class="{ current: item.id === canvasId }"
-              @click="switchCanvas(item.id)"
             >
-              <span>
-                <b>{{ item.name }}</b>
-                <small>{{ formatCanvasUpdatedAt(item.updatedAt) }}</small>
-                <small>{{ item.nodeCount }} 个节点 · {{ item.edgeCount }} 条连线</small>
-              </span>
-              <i v-if="item.id === canvasId">当前</i>
-            </button>
+              <button
+                class="canvas-picker-item"
+                @click="switchCanvas(item.id)"
+              >
+                <span>
+                  <b>{{ item.name }}</b>
+                  <small>{{ formatCanvasUpdatedAt(item.updatedAt) }}</small>
+                  <small>{{ item.nodeCount }} 个节点 · {{ item.edgeCount }} 条连线</small>
+                </span>
+                <i v-if="item.id === canvasId">当前</i>
+              </button>
+              <button
+                class="canvas-picker-delete"
+                :aria-label="`删除画布 ${item.name}`"
+                title="删除画布"
+                @click.stop="deleteCanvasFromList(item)"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M5 7h14M9 7V4.5h6V7M8 10v7M12 10v7M16 10v7M7 7l1 13h8l1-13"></path>
+                </svg>
+              </button>
+            </div>
             <div v-if="!canvasIndex.length" class="canvas-picker-empty">
               暂无已保存画布
             </div>
           </div>
+          <button @click="importCanvasInput?.click()">⇩ 导入画布</button>
+          <input
+            ref="importCanvasInput"
+            class="visually-hidden-file-input"
+            type="file"
+            accept=".zip,application/zip"
+            @change="importCanvasArchive"
+          />
           <div class="project-menu-divider"></div>
           <button @click="newCanvas">＋ 新建画布</button>
           <button @click="exportCanvas">⇩ 导出画布</button>
@@ -2800,6 +4072,13 @@ onUnmounted(() => {
       </div>
       <div class="save-state"><span></span> 已保存</div>
       <div class="top-spacer"></div>
+      <label class="input-mode-control" title="选择画布滚动方式">
+        <span>{{ inputMode === 'mouse' ? '鼠标模式' : '触控板模式' }}</span>
+        <select v-model="inputMode" aria-label="画布操作模式">
+          <option value="mouse">鼠标模式</option>
+          <option value="trackpad">触控板模式</option>
+        </select>
+      </label>
       <div class="font-size-control" aria-label="字体大小">
         <button
           title="缩小字体"
@@ -2822,11 +4101,11 @@ onUnmounted(() => {
 
     <main class="workspace">
       <aside class="left-rail">
-        <button :class="{ active: mode === 'select' && !showTemplatePanel }" title="选择 (V)" @click="showTemplatePanel = false; mode = 'select'">↖</button>
-        <button :class="{ active: mode === 'hand' && !showTemplatePanel }" title="移动画布 (H)" @click="showTemplatePanel = false; mode = 'hand'">✋</button>
-        <div class="rail-divider"></div>
         <button v-for="item in toolbarItems" :key="item.kind" :title="item.label" @click="showTemplatePanel = false; addNode(item.kind)">
           <b>{{ item.icon }}</b><span>{{ item.label }}</span>
+        </button>
+        <button title="上传文件并创建控件" aria-label="添加文件" @click="openStandaloneFilePicker">
+          <b>＋</b><span>添加</span>
         </button>
         <button
           class="template-rail-button"
@@ -2843,6 +4122,8 @@ onUnmounted(() => {
           <span>模板</span>
         </button>
         <input ref="replaceImageInput" hidden type="file" accept="image/*" @change="replaceSelectedImage" />
+        <input ref="addFileInput" hidden type="file" @change="addFileToNode" />
+        <input ref="standaloneFileInput" hidden type="file" @change="addStandaloneFile" />
       </aside>
 
       <aside
@@ -2985,13 +4266,69 @@ onUnmounted(() => {
               <p>点击“导入模板”，保存当前画布的节点、位置和连线</p>
             </div>
           </div>
-          <div v-else class="template-empty template-library-placeholder">
-            <svg viewBox="0 0 48 48" aria-hidden="true">
-              <path d="m24 7 14 8-14 8-14-8 14-8Z"></path>
-              <path d="m10 23 14 8 14-8M10 31l14 8 14-8"></path>
-            </svg>
-            <b>模板库即将上线</b>
-            <p>这里已预留分类、搜索和模板卡片区域</p>
+          <div v-else class="template-mine template-library-list">
+            <div class="template-mine-toolbar">
+              <span>内置模板 · 所有人可用</span>
+            </div>
+            <div class="template-list">
+              <article
+                v-for="item in builtInCanvasTemplates"
+                :key="item.id"
+                class="template-card template-library-card"
+                tabindex="0"
+              >
+                <div class="template-card-icon">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M5 6.5h14v11H5z"></path>
+                    <path d="M8 10h3v3H8zM13 10h3M13 13h3"></path>
+                  </svg>
+                </div>
+                <div class="template-card-info">
+                  <b>{{ item.name }}</b>
+                  <small>{{ item.nodes.length }} 个节点 · {{ item.edges.length }} 条连线</small>
+                </div>
+                <button class="template-use-button" @click="useCanvasTemplate(item)">使用模板</button>
+                <div class="template-preview-popover" aria-hidden="true">
+                  <strong>{{ item.name }}</strong>
+                  <svg viewBox="0 0 280 150" preserveAspectRatio="xMidYMid meet">
+                    <defs>
+                      <marker
+                        :id="`template-arrow-${item.id}`"
+                        markerWidth="5"
+                        markerHeight="5"
+                        refX="4"
+                        refY="2.5"
+                        orient="auto"
+                      >
+                        <path d="M0,0 L5,2.5 L0,5 z"></path>
+                      </marker>
+                    </defs>
+                    <line
+                      v-for="edge in templatePreview(item).edges"
+                      :key="edge.id"
+                      class="template-preview-edge"
+                      :x1="edge.x1"
+                      :y1="edge.y1"
+                      :x2="edge.x2"
+                      :y2="edge.y2"
+                      :marker-end="`url(#template-arrow-${item.id})`"
+                    />
+                    <rect
+                      v-for="node in templatePreview(item).nodes"
+                      :key="node.id"
+                      class="template-preview-node"
+                      :class="`kind-${node.kind}`"
+                      :x="node.x"
+                      :y="node.y"
+                      :width="node.width"
+                      :height="node.height"
+                      rx="2.5"
+                    />
+                  </svg>
+                  <span>悬浮预览 · {{ item.nodes.length }} 个节点</span>
+                </div>
+              </article>
+            </div>
           </div>
         </div>
       </aside>
@@ -3026,9 +4363,10 @@ onUnmounted(() => {
           <article
             v-for="node in nodes"
             :key="node.id"
+            :ref="observeNodeElement"
             :data-node-id="node.id"
             class="canvas-node"
-            :class="[`node-${node.kind}`, { selected: selected.includes(node.id), linking: linkingFrom === node.id, stale: isNodeStale(node), resized: Boolean(node.height), 'has-result': Boolean(node.resultText) && node.kind === 'text', 'image-editing': imageEditNodeId === node.id }]"
+            :class="[`node-${node.kind}`, { selected: selected.includes(node.id), linking: linkingFrom === node.id, stale: isNodeStale(node), resized: Boolean(node.height), 'has-result': Boolean(node.resultText) && node.kind === 'text', 'image-editing': imageEditNodeId === node.id, 'media-prompt-open': mediaPromptNodeId === node.id }]"
             :style="{
               transform: `translate(${node.x}px, ${node.y}px)`,
               width: `${node.width}px`,
@@ -3041,15 +4379,51 @@ onUnmounted(() => {
               <span class="node-drag-handle" title="拖动节点" aria-label="拖动节点">⠿</span>
               <span class="kind-icon">{{ toolbarItems.find((x) => x.kind === node.kind)?.icon }}</span>
               <input v-model="node.title" aria-label="节点标题" @input="markNodeChanged(node)" />
-              <span v-if="node.status" class="status" :class="node.status">
-                {{ node.status === 'running' ? '运行中' : node.status === 'success' ? '完成' : node.status === 'stale' ? '已过期' : node.status === 'error' ? '失败' : '就绪' }}
+              <span
+                v-if="node.status"
+                class="node-status-dot"
+                :class="isNodeStale(node) ? 'stale' : node.status"
+                :title="isNodeStale(node) ? '上游输入已更新' : node.status === 'success' ? '生成成功' : node.status === 'running' ? '生成中' : node.status === 'error' ? '生成失败' : '等待生成'"
+                aria-hidden="true"
+              ></span>
+              <button
+                v-if="node.kind === 'text'"
+                class="node-role-button"
+                :class="{ selected: Boolean(roleForNode(node)) }"
+                :title="roleForNode(node) ? `当前角色：${roleForNode(node)?.name}` : '选择角色'"
+                @click.stop="openRoleManager(node)"
+              >
+                选择角色
+              </button>
+              <span v-else-if="node.kind === 'image'" class="node-media-info">
+                {{ node.imageWidth || 1024 }} × {{ node.imageHeight || 1024 }}
               </span>
+              <span v-else-if="node.kind === 'video'" class="node-media-info">
+                {{ videoSizeLabel(node) }}
+              </span>
+              <button
+                v-else-if="node.kind === 'audio'"
+                class="node-media-play"
+                :disabled="!node.url"
+                @click.stop="toggleAudioPlayback($event, node)"
+              >
+                {{ audioState(node).playing ? '暂停' : '播放' }}
+              </button>
               <button
                 v-if="node.kind === 'image'"
                 class="more image-settings-button"
                 :class="{ active: imageSettingsNodeId === node.id }"
                 title="图片尺寸设置"
                 @click.stop="toggleImageSettings(node)"
+              >
+                ⚙
+              </button>
+              <button
+                v-else-if="node.kind === 'video'"
+                class="more image-settings-button"
+                :class="{ active: videoSettingsNodeId === node.id }"
+                title="视频设置"
+                @click.stop="toggleVideoSettings(node)"
               >
                 ⚙
               </button>
@@ -3129,12 +4503,45 @@ onUnmounted(() => {
             </div>
 
             <div
+              v-if="node.kind === 'video' && videoSettingsNodeId === node.id"
+              class="image-node-settings video-node-settings"
+              @pointerdown.stop
+            >
+              <div class="ratio-title"><b>画面比例</b><span>{{ videoAspectLabel(node) }}</span></div>
+              <div class="ratio-presets video-ratio-presets">
+                <button :class="{ selected: node.videoAutoSize ?? true }" @click="setVideoAuto(node)">自动</button>
+                <button :class="{ selected: !(node.videoAutoSize ?? true) && node.videoAspectWidth === 16 && node.videoAspectHeight === 9 }" @click="setVideoRatio(node, 16, 9)">16:9</button>
+                <button :class="{ selected: !(node.videoAutoSize ?? true) && node.videoAspectWidth === 9 && node.videoAspectHeight === 16 }" @click="setVideoRatio(node, 9, 16)">9:16</button>
+                <button :class="{ selected: !(node.videoAutoSize ?? true) && node.videoAspectWidth === 1 && node.videoAspectHeight === 1 }" @click="setVideoRatio(node, 1, 1)">1:1</button>
+                <button :class="{ selected: !(node.videoAutoSize ?? true) && node.videoAspectWidth === 4 && node.videoAspectHeight === 3 }" @click="setVideoRatio(node, 4, 3)">4:3</button>
+                <button :class="{ selected: !(node.videoAutoSize ?? true) && node.videoAspectWidth === 3 && node.videoAspectHeight === 4 }" @click="setVideoRatio(node, 3, 4)">3:4</button>
+              </div>
+              <div class="dimension-inputs video-aspect-inputs">
+                <label>比例 W <input v-model.number="node.videoAspectWidth" type="number" min="1" max="100" @change="node.videoAutoSize = false; normalizeVideoSettings(node)" /></label>
+                <span>:</span>
+                <label>比例 H <input v-model.number="node.videoAspectHeight" type="number" min="1" max="100" @change="node.videoAutoSize = false; normalizeVideoSettings(node)" /></label>
+              </div>
+              <label class="video-duration-setting">
+                <span>视频时长</span>
+                <input v-model.number="node.videoDuration" type="range" min="1" max="15" step="1" @input="normalizeVideoSettings(node)" />
+                <b>{{ normalizedVideoDuration(node) }}s</b>
+              </label>
+              <div class="video-resolution-setting">
+                <span>分辨率</span>
+                <div>
+                  <button :class="{ selected: (node.videoResolution || 720) === 720 }" @click="node.videoResolution = 720; normalizeVideoSettings(node)">720p</button>
+                  <button :class="{ selected: node.videoResolution === 480 }" @click="node.videoResolution = 480; normalizeVideoSettings(node)">480p</button>
+                </div>
+              </div>
+              <small>当前输出尺寸：{{ videoSizeLabel(node) }}，生成时会发送给视频模型。</small>
+            </div>
+
+            <div
               v-if="node.kind === 'image'"
-              class="media-preview image-preview"
-              :class="{ editable: isGeneratedImage(node) }"
+              class="media-preview image-preview editable"
               :style="{ aspectRatio: imageAspect(node) }"
-              :title="isGeneratedImage(node) ? '单击修改这张生成图片' : undefined"
-              @click.stop="openImageEditor(node)"
+              title="单击打开图片生成输入"
+              @click.stop="openMediaPrompt(node)"
             >
               <img
                 v-if="node.url"
@@ -3148,11 +4555,26 @@ onUnmounted(() => {
                 <i></i><i></i><i></i><span>INFINITE</span>
               </div>
             </div>
-            <div v-else-if="node.kind === 'video'" class="media-preview video-preview">
-              <video v-if="node.url" :src="node.url" controls></video>
+            <div
+              v-else-if="node.kind === 'video'"
+              class="media-preview video-preview editable"
+              title="单击打开视频生成输入"
+              @click.stop="openMediaPrompt(node)"
+            >
+              <video
+                v-if="node.url"
+                :src="node.url"
+                controls
+                @loadedmetadata="syncVideoMetadata($event, node)"
+              ></video>
               <div v-else class="video-placeholder"><button>▶</button><span>准备生成动态画面</span></div>
             </div>
-            <div v-else-if="node.kind === 'audio'" class="audio-preview">
+            <div
+              v-else-if="node.kind === 'audio'"
+              class="audio-preview editable"
+              title="单击打开音频生成输入"
+              @click.stop="openMediaPrompt(node)"
+            >
               <audio
                 v-if="node.url"
                 :src="node.url"
@@ -3249,72 +4671,81 @@ onUnmounted(() => {
             />
 
             <div
-              v-if="node.kind === 'image' && imageEditNodeId === node.id"
-              class="image-edit-panel"
+              v-if="['image', 'video', 'audio'].includes(node.kind) && mediaPromptNodeId === node.id"
+              class="media-generation-panel"
               @pointerdown.stop
               @wheel.stop
               @dblclick.stop
             >
               <header>
                 <div>
-                  <b>修改图片</b>
-                  <small>原图会保留，新结果生成在右侧</small>
+                  <b>{{ serviceKindLabel(nodeServiceKind(node)) }}生成提示词</b>
+                  <small>输入内容将作为当前节点新的生成提示词</small>
                 </div>
-                <button title="关闭" @click="closeImageEditor">×</button>
+                <div class="media-prompt-tools">
+                  <button
+                    title="保存当前提示词"
+                    aria-label="保存当前提示词"
+                    :disabled="!node.content.trim()"
+                    @click.stop="saveCurrentPrompt(node)"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M6.5 4.5h11a1 1 0 0 1 1 1v15l-6.5-4-6.5 4v-15a1 1 0 0 1 1-1Z"></path>
+                    </svg>
+                  </button>
+                  <button
+                    title="我的提示词"
+                    aria-label="我的提示词"
+                    @click.stop="openPromptLibrary(node)"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M3.5 7.5h6l2-2h9a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1h-17a1 1 0 0 1-1-1v-10a1 1 0 0 1 1-1Z"></path>
+                    </svg>
+                  </button>
+                </div>
               </header>
-              <label class="image-edit-prompt">
-                <span>生成提示词</span>
-                <textarea
-                  v-model="imageEditDraft.prompt"
-                  placeholder="描述希望如何修改这张图片"
-                  @wheel.stop
-                ></textarea>
-              </label>
-              <div class="ratio-title">
-                <b>画面比例</b>
-                <span>{{ editAspectLabel() }}</span>
-              </div>
-              <div class="ratio-presets">
-                <button :class="{ selected: imageEditDraft.imageAutoSize }" @click="setImageEditAuto">自动</button>
-                <button :class="{ selected: !imageEditDraft.imageAutoSize && imageEditDraft.imageWidth === 1024 && imageEditDraft.imageHeight === 1024 }" @click="setImageEditRatio(1024, 1024)">1:1</button>
-                <button :class="{ selected: !imageEditDraft.imageAutoSize && imageEditDraft.imageWidth === 1536 && imageEditDraft.imageHeight === 1024 }" @click="setImageEditRatio(1536, 1024)">3:2</button>
-                <button :class="{ selected: !imageEditDraft.imageAutoSize && imageEditDraft.imageWidth === 1024 && imageEditDraft.imageHeight === 1536 }" @click="setImageEditRatio(1024, 1536)">2:3</button>
-                <button :class="{ selected: !imageEditDraft.imageAutoSize && imageEditDraft.imageWidth === 1920 && imageEditDraft.imageHeight === 1080 }" @click="setImageEditRatio(1920, 1080)">16:9</button>
-                <button :class="{ selected: !imageEditDraft.imageAutoSize && imageEditDraft.imageWidth === 1080 && imageEditDraft.imageHeight === 1920 }" @click="setImageEditRatio(1080, 1920)">9:16</button>
-              </div>
-              <div class="dimension-inputs">
-                <label>W <input v-model.number="imageEditDraft.imageWidth" type="number" min="64" max="4096" @change="normalizeImageEditDimensions" /></label>
-                <span>×</span>
-                <label>H <input v-model.number="imageEditDraft.imageHeight" type="number" min="64" max="4096" @change="normalizeImageEditDimensions" /></label>
-              </div>
-              <label class="generation-count">
-                <span>生成张数</span>
-                <input
-                  v-model.number="imageEditDraft.imageCount"
-                  type="number"
-                  min="1"
-                  max="8"
-                  step="1"
-                  @change="normalizeImageEditCount"
-                />
-              </label>
-              <footer>
-                <button @click="closeImageEditor">取消</button>
+              <NodePromptEditor
+                v-model="node.content"
+                :placeholder="`输入用于生成${serviceKindLabel(nodeServiceKind(node))}的提示词，可使用 @ 引用已连接资源`"
+                :upstream="upstreamFor(node.id)"
+                @change="markNodeChanged(node)"
+              />
+              <footer class="media-generation-footer">
+                <button class="node-add-file-button" @click.stop="openNodeFilePicker(node)">
+                  <b>＋</b>
+                  <span>添加</span>
+                </button>
+                <button
+                  class="node-role-button media-role-button"
+                  :class="{ selected: Boolean(roleForNode(node)) }"
+                  :title="roleForNode(node) ? `当前角色：${roleForNode(node)?.name}` : '选择角色'"
+                  @click.stop="openRoleManager(node)"
+                >
+                  选择角色
+                </button>
                 <div class="generation-controls">
                   <select
+                    class="node-model-select"
                     :value="serviceForNode(node).id"
-                    aria-label="选择图片模型"
-                    @change="setNodeModelChannel(node, ($event.target as HTMLSelectElement).value)"
+                    :aria-label="`选择${serviceKindLabel(nodeServiceKind(node))}模型`"
+                    @change.stop="setNodeModelChannel(node, ($event.target as HTMLSelectElement).value)"
                   >
                     <option
-                      v-for="channel in channelsFor('image')"
+                      v-for="channel in channelsFor(nodeServiceKind(node))"
                       :key="channel.id"
                       :value="channel.id"
                     >
                       {{ modelChannelLabel(channel) }}
                     </option>
                   </select>
-                  <button class="primary generation-action" @click="runImageVariation(node)">生成修改结果</button>
+                  <button
+                    class="run-button generation-action"
+                    :class="{ running: node.status === 'running' || imageVariationRunningIds.includes(node.id) }"
+                    @click.stop="runMediaNode(node)"
+                  >
+                    <span class="generation-sparkle" aria-hidden="true">✦</span>
+                    <span>{{ node.status === 'running' || imageVariationRunningIds.includes(node.id) ? '生成中…' : '生成' }}</span>
+                  </button>
                 </div>
               </footer>
             </div>
@@ -3351,17 +4782,44 @@ onUnmounted(() => {
             </div>
             <div v-if="isNodeStale(node)" class="stale-notice">上游输入已更新，建议重新生成</div>
 
-            <div class="node-foot">
-              <span>
-                {{ incomingEdges(node.id).filter((edge) => edge.enabled).length }} 个输入 ·
-                {{
-                  node.kind === 'text'
-                    ? `${node.content.length} 字`
-                    : node.kind === 'image'
-                      ? `${node.imageAutoSize ? '自动' : `${node.imageWidth || 1024} × ${node.imageHeight || 1024}`} · ${node.imageCount || 1} 张 · ${node.content}`
-                      : node.content
-                }}
-              </span>
+            <div v-if="node.kind === 'text' || node.kind === 'config'" class="node-foot">
+              <button class="node-add-file-button" @click.stop="openNodeFilePicker(node)">
+                <b>＋</b>
+                <span>添加</span>
+              </button>
+              <div v-if="node.kind === 'text'" class="text-prompt-tools">
+                <div class="text-prompt-save-wrap">
+                  <button
+                    title="保存提示词"
+                    aria-label="保存提示词"
+                    :class="{ active: textPromptSaveNodeId === node.id }"
+                    :disabled="!node.content.trim() && !node.resultText?.trim()"
+                    @click.stop="toggleTextPromptSaveMenu(node)"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M6.5 4.5h11a1 1 0 0 1 1 1v15l-6.5-4-6.5 4v-15a1 1 0 0 1 1-1Z"></path>
+                    </svg>
+                  </button>
+                  <div
+                    v-if="textPromptSaveNodeId === node.id"
+                    class="text-prompt-save-menu"
+                    @click.stop
+                    @pointerdown.stop
+                  >
+                    <button :disabled="!node.content.trim()" @click="saveTextPromptVersion(node, 'before')">
+                      <b>生成前</b><span>保存输入区内容</span>
+                    </button>
+                    <button :disabled="!node.resultText?.trim()" @click="saveTextPromptVersion(node, 'after')">
+                      <b>生成后</b><span>保存 AI 生成结果</span>
+                    </button>
+                  </div>
+                </div>
+                <button title="我的提示词" aria-label="我的提示词" @click.stop="openPromptLibrary(node)">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M3.5 7.5h6l2-2h9a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1h-17a1 1 0 0 1-1-1v-10a1 1 0 0 1 1-1Z"></path>
+                  </svg>
+                </button>
+              </div>
               <div v-if="node.kind !== 'config'" class="generation-controls">
                 <select
                   class="node-model-select"
@@ -3384,7 +4842,8 @@ onUnmounted(() => {
                   :class="{ running: node.status === 'running' }"
                   @click.stop="runNode(node)"
                 >
-                  {{ node.status === 'running' ? '生成中…' : '生成' }} ✦
+                  <span class="generation-sparkle" aria-hidden="true">✦</span>
+                  <span>{{ node.status === 'running' ? '生成中…' : '生成' }}</span>
                 </button>
               </div>
             </div>
@@ -3466,6 +4925,202 @@ onUnmounted(() => {
           <button @click="replaceZoomedImage">替换图片</button>
           <button class="primary" @click="reversePromptZoomedImage">反推提示词</button>
         </footer>
+      </div>
+    </Transition>
+
+    <Transition name="fade">
+      <div v-if="roleManagerNode" class="modal-backdrop role-manager-backdrop" @mousedown.self="closeRoleManager">
+        <section class="role-manager-modal" @mousedown.stop>
+          <header>
+            <div>
+              <h2>角色管理</h2>
+              <p>为“{{ roleManagerNode.title }}”选择生成时使用的角色</p>
+            </div>
+            <button
+              class="role-create-button"
+              :disabled="canvasRoles.length >= MAX_CANVAS_ROLES"
+              @click="startCreateRole"
+            >
+              ＋ 创建角色
+            </button>
+            <button class="close" aria-label="关闭角色管理" @click="closeRoleManager">×</button>
+          </header>
+
+          <div class="role-manager-body">
+            <div class="role-count">已创建 {{ canvasRoles.length }}/{{ MAX_CANVAS_ROLES }}</div>
+            <form v-if="showCreateRole" class="role-create-form" @submit.prevent="saveCreatedRole">
+              <label>
+                角色名称
+                <input
+                  v-model="roleDraft.name"
+                  maxlength="60"
+                  placeholder="例如：顶尖商业视觉艺术总监"
+                  autofocus
+                />
+              </label>
+              <label>
+                系统提示词
+                <textarea
+                  v-model="roleDraft.systemPrompt"
+                  maxlength="12000"
+                  placeholder="在此输入系统提示词，例如：你是一位..."
+                ></textarea>
+              </label>
+              <div class="role-form-actions">
+                <button type="button" class="ghost" @click="showCreateRole = false">取消</button>
+                <button type="submit" class="primary">保存角色</button>
+              </div>
+            </form>
+
+            <div v-if="canvasRoles.length" class="role-list">
+              <article
+                v-for="role in canvasRoles"
+                :key="role.id"
+                class="role-list-item"
+                :class="{ selected: roleManagerNode.roleId === role.id }"
+              >
+                <div>
+                  <b>{{ role.name }}</b>
+                  <p>{{ role.systemPrompt }}</p>
+                </div>
+                <span v-if="roleManagerNode.roleId === role.id">当前角色</span>
+                <button v-else @click="selectRoleForCurrentNode(role)">选择</button>
+                <button
+                  class="role-delete-button"
+                  :aria-label="`删除角色 ${role.name}`"
+                  title="删除角色"
+                  @click="deleteCanvasRole(role)"
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M5 7h14M9 7V4.5h6V7M8 10v7M12 10v7M16 10v7M7 7l1 13h8l1-13"></path>
+                  </svg>
+                </button>
+              </article>
+            </div>
+            <div v-else-if="!showCreateRole" class="role-empty">
+              <b>还没有角色</b>
+              <p>点击右上角“创建角色”，保存后即可在这里选择。</p>
+            </div>
+          </div>
+
+          <footer>
+            <button
+              v-if="roleManagerNode.roleId"
+              class="role-clear-button"
+              @click="clearRoleForCurrentNode"
+            >
+              不使用角色
+            </button>
+            <button class="ghost" @click="closeRoleManager">关闭</button>
+          </footer>
+        </section>
+      </div>
+    </Transition>
+
+    <Transition name="fade">
+      <div
+        v-if="promptLibraryNode"
+        class="modal-backdrop role-manager-backdrop"
+        @mousedown.self="closePromptLibrary"
+      >
+        <section class="role-manager-modal prompt-library-modal" @mousedown.stop>
+          <header>
+            <div>
+              <h2>我的提示词</h2>
+              <p>选择提示词后将写入“{{ promptLibraryNode.title }}”的输入框</p>
+            </div>
+            <button
+              class="role-create-button"
+              :disabled="savedPrompts.length >= MAX_SAVED_PROMPTS"
+              @click="startCreatePrompt"
+            >
+              ＋ 添加提示词
+            </button>
+            <button class="close" aria-label="关闭我的提示词" @click="closePromptLibrary">×</button>
+          </header>
+
+          <div class="role-manager-body">
+            <div class="role-count">已保存 {{ savedPrompts.length }}/{{ MAX_SAVED_PROMPTS }}</div>
+            <form v-if="showCreatePrompt" class="role-create-form prompt-create-form" @submit.prevent="saveCreatedPrompt">
+              <label>
+                类型标签
+                <select v-model="promptCreateDraft.kind">
+                  <option value="text">文本</option>
+                  <option value="image">图片</option>
+                  <option value="video">视频</option>
+                  <option value="audio">音频</option>
+                </select>
+              </label>
+              <label>
+                提示词内容
+                <textarea
+                  v-model="promptCreateDraft.text"
+                  maxlength="32000"
+                  placeholder="在此输入要保存的提示词"
+                  autofocus
+                ></textarea>
+              </label>
+              <div class="role-form-actions">
+                <button type="button" class="ghost" @click="cancelCreatePrompt">取消</button>
+                <button type="submit" class="primary">保存提示词</button>
+              </div>
+            </form>
+            <div v-if="savedPrompts.length" class="role-list prompt-list">
+              <article
+                v-for="prompt in savedPrompts"
+                :key="prompt.id"
+                class="role-list-item prompt-list-item"
+                tabindex="0"
+                title="点击使用这条提示词"
+                @click="editingPromptId !== prompt.id && selectSavedPrompt(prompt)"
+                @keydown.enter.prevent="editingPromptId !== prompt.id && selectSavedPrompt(prompt)"
+              >
+                <template v-if="editingPromptId === prompt.id">
+                  <div class="prompt-edit-form" @click.stop @keydown.stop>
+                    <select v-model="promptEditDraft.kind" aria-label="提示词类型">
+                      <option value="text">文本</option>
+                      <option value="image">图片</option>
+                      <option value="video">视频</option>
+                      <option value="audio">音频</option>
+                    </select>
+                    <textarea v-model="promptEditDraft.text" maxlength="32000" aria-label="修改提示词"></textarea>
+                    <div>
+                      <button @click="cancelEditSavedPrompt">取消</button>
+                      <button class="primary" @click="saveEditedPrompt(prompt)">保存修改</button>
+                    </div>
+                  </div>
+                </template>
+                <template v-else>
+                  <div>
+                    <span class="prompt-kind-tag" :class="`kind-${prompt.kind}`">
+                      {{ serviceKindLabel(prompt.kind) }}
+                    </span>
+                    <p>{{ prompt.text }}</p>
+                  </div>
+                  <button title="修改提示词" @click.stop="startEditSavedPrompt(prompt)">修改</button>
+                  <button
+                    class="role-delete-button"
+                    aria-label="删除提示词"
+                    title="删除提示词"
+                    @click.stop="deleteSavedPrompt(prompt)"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M5 7h14M9 7V4.5h6V7M8 10v7M12 10v7M16 10v7M7 7l1 13h8l1-13"></path>
+                    </svg>
+                  </button>
+                </template>
+              </article>
+            </div>
+            <div v-else-if="!showCreatePrompt" class="role-empty">
+              <b>还没有保存的提示词</b>
+              <p>在媒体输入区填写内容后，点击右上角“保存当前提示词”。</p>
+            </div>
+          </div>
+
+          <footer>
+            <button class="ghost" @click="closePromptLibrary">关闭</button>
+          </footer>
+        </section>
       </div>
     </Transition>
 
@@ -3557,8 +5212,7 @@ onUnmounted(() => {
               <template v-else-if="activeSetting === '系统提示词'">
                 <div class="section-title"><div><h3>系统提示词</h3><p>定义 AI 在所有工作流中的身份与行为边界</p></div></div>
                 <label>全局系统提示词<textarea v-model="settings.systemPrompt" class="large-textarea"></textarea></label>
-                <label>当前画布提示词<textarea v-model="settings.canvasPrompt" class="canvas-prompt"></textarea></label>
-                <div class="prompt-card"><b>提示词层级</b><p>全局系统提示词 → 当前画布上下文 → 节点级指令 → 用户输入</p></div>
+                <div class="prompt-card"><b>提示词层级</b><p>全局系统提示词 → 节点级指令 → 用户输入</p></div>
                 <label>工具确认策略
                   <select v-model="settings.confirmPolicy"><option>始终确认</option><option>仅危险操作</option><option>从不确认</option></select>
                 </label>
