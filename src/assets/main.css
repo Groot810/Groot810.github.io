@@ -623,5 +623,28 @@ button { color: inherit; }
 .app-shell.light img,.app-shell.light video{filter:invert(1) hue-rotate(180deg)}
 @media(max-width:700px){.save-state,.top-action span{display:none}.left-rail{top:auto;bottom:12px;left:10px;right:10px;width:auto;flex-direction:row;overflow-x:auto}.left-rail button{min-width:43px}.rail-divider{width:1px;height:34px}.minimap{display:none}.settings-modal{width:100%;height:100%;max-height:none;border-radius:0}.settings-nav{width:62px}.settings-nav button{padding:0;justify-content:center;font-size:0}.settings-nav button span{font-size:15px}.local-note{display:none}.settings-content{padding:22px 18px}.form-grid{grid-template-columns:1fr}}
 
+/* Unified button-like dropdowns, matching the prompt save menu. */
+.app-shell select {
+  appearance:none;
+  -webkit-appearance:none;
+  border:1px solid #3b4050;
+  border-radius:8px;
+  padding-right:30px!important;
+  background-color:#181b22;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%238e96a5' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m7 9 5 5 5-5'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;
+  background-position:right 9px center;
+  color:#c8cdd7;
+  box-shadow:0 3px 10px #0003;
+  cursor:pointer;
+  transition:border-color .15s,background-color .15s,color .15s,box-shadow .15s;
+  color-scheme:dark;
+}
+.app-shell select:hover:not(:disabled) { border-color:#57516f;background-color:#242230;color:#fff; }
+.app-shell select:focus { border-color:#6f64c8!important;background-color:#242230;box-shadow:0 0 0 2px #786bec24,0 7px 18px #0005!important;outline:none; }
+.app-shell select:disabled { border-color:#30343d;background-color:#20232a;color:#555c68;opacity:.58;cursor:not-allowed; }
+.app-shell select option,.app-shell select optgroup { padding:9px 10px;background:#181b22;color:#c8cdd7;font-size:inherit; }
+.app-shell select option:checked { background:#302c47;color:#fff; }
+
 @media(max-width:700px){.template-panel{left:10px;right:10px;top:12px;bottom:72px;width:auto;height:auto}}
 @media(max-width:700px){.template-preview-popover{display:none}}
