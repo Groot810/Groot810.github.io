@@ -97,6 +97,38 @@ pnpm preview
 - 保存时会检查正文；内容完全相同的提示词不会重复保存。
 - “我的提示词”支持直接新增、修改、删除和类型标签调整。
 - 点击提示词卡片会关闭管理界面，并把内容写入当前节点。
+- 点击“提示词库”可浏览 6 个公开提示词来源；支持按来源、标签分类和关键词筛选。
+- 标签默认只显示一行，点击右侧箭头可以展开全部标签或重新收起。
+- 公开提示词卡片显示标题、正文摘要、类型、标签、作者和来源；点击后会写入当前节点。
+- 提示词库按需从公开 JSON 加载，只缓存在当前页面内，不占用画布的本地存储空间。
+
+## 公开提示词库来源
+
+项目的“提示词库”及“模板库 → 提示词模板”使用以下 6 个公开提示词来源：
+
+| 项目内名称 | 上游来源 |
+|---|---|
+| Banana Prompt Quicker | [glidea/banana-prompt-quicker](https://github.com/glidea/banana-prompt-quicker) · [在线项目](https://glidea.github.io/banana-prompt-quicker/) |
+| DavidWu GPT Image 2 | [davidwuw0811-boop/awesome-gpt-image2-prompts](https://github.com/davidwuw0811-boop/awesome-gpt-image2-prompts) |
+| Awesome GPT Image | [ZeroLu/awesome-gpt-image](https://github.com/ZeroLu/awesome-gpt-image) |
+| Awesome GPT-4o | [ImgEdify/Awesome-GPT4o-Image-Prompts](https://github.com/ImgEdify/Awesome-GPT4o-Image-Prompts) |
+| YouMind GPT Image 2 | [YouMind-OpenLab/awesome-gpt-image-2](https://github.com/YouMind-OpenLab/awesome-gpt-image-2) |
+| YouMind Nano Banana Pro | [YouMind-OpenLab/awesome-nano-banana-pro-prompts](https://github.com/YouMind-OpenLab/awesome-nano-banana-pro-prompts) |
+
+### 统一 JSON 数据
+
+本项目不在浏览器中直接解析上述 6 个仓库的不同原始格式，而是读取 [yukkcat/image-prompts 的 `dist/sources`](https://github.com/yukkcat/image-prompts/tree/main/dist/sources) 发布的统一格式静态 JSON。
+
+`image-prompts` 负责集中抓取、解析、字段标准化和数据校验，并按来源生成 JSON；本项目通过 `fetch()` 按需读取这些结果，用于搜索、来源筛选、标签筛选、详情预览和写入节点。当前使用的文件包括：
+
+- `banana-prompt-quicker.json`
+- `davidwu-gpt-image2-prompts.json`
+- `awesome-gpt-image.json`
+- `awesome-gpt4o-image-prompts.json`
+- `youmind-gpt-image-2.json`
+- `youmind-nano-banana-pro.json`
+
+统一 JSON 只是数据分发和格式适配层，不是提示词或参考图片的重新授权方。同步程序使用 MIT License；各提示词、示例图片、作者署名和其他内容的权利与许可仍以对应上游项目为准。本项目保留数据中的来源名称、作者和原始链接，使用或再分发前请同时检查对应上游仓库的许可证与署名要求。
 
 ## 角色管理
 
@@ -107,9 +139,12 @@ pnpm preview
 
 ## 模板与文件
 
-- “我的模板”保存节点类型、尺寸、位置和连线，不保存用户文件、提示词或生成结果。
-- 本地模板最多 10 个，支持重命名、使用和删除。
-- “模板库”包含随项目发布的公共结构模板。
+- “我的模板”和“模板库”都分为“画布模板 / 提示词模板”。
+- 我的画布模板保存节点类型、尺寸、位置和连线，不保存用户文件、提示词或生成结果；最多 10 个。
+- “我的模板 → 提示词模板”直接读取“我的提示词”的保存记录，两处内容、类型、修改和删除状态完全同步，最多 100 条。
+- 可以从提示词模板列表使用或删除记录，也可以把当前选中节点的内容保存到“我的提示词”。
+- 使用提示词模板时优先写入类型匹配的当前节点；没有匹配节点时自动创建文本、图片、视频或音频节点。
+- “模板库”包含随项目发布的公共画布模板和公共提示词模板，均可直接使用。
 - 左侧“添加”可以识别支持的文本、图片、视频和音频格式，并创建对应节点。
 - 文本文件会读取实际文字；格式不支持、编码无法读取或文件损坏时会显示错误。
 

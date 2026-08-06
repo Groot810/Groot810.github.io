@@ -2,6 +2,7 @@
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import NodePromptEditor from './components/NodePromptEditor.vue'
 import ToggleRow from './components/ToggleRow.vue'
+import builtInCanvasTemplateData from './data/built-in-canvas-templates.json'
 
 type NodeKind = 'text' | 'image' | 'video' | 'audio' | 'config'
 type ServiceKind = Exclude<NodeKind, 'config'>
@@ -58,6 +59,25 @@ type SavedPrompt = {
   kind: ServiceKind
   createdAt: number
   updatedAt: number
+}
+type PublicPromptSource = {
+  id: string
+  name: string
+  url: string
+  homepage: string
+}
+type PublicPrompt = {
+  id: string
+  sourceId: string
+  title: string
+  prompt: string
+  description: string
+  coverUrl: string
+  referenceImageUrls: string[]
+  tags: string[]
+  author: string
+  sourceUrl: string
+  imageMode: 'generate' | 'edit' | string
 }
 type CanvasNode = {
   id: string
@@ -131,75 +151,17 @@ const SAVED_PROMPTS_KEY = 'infinite:saved-prompts'
 const MAX_CANVAS_TEMPLATES = 10
 const MAX_CANVAS_ROLES = 30
 const MAX_SAVED_PROMPTS = 100
-const builtInCanvasTemplates: CanvasTemplate[] = [
-  {
-    id: 'library-fashion-replication',
-    name: '服装复刻',
-    createdAt: 0,
-    nodes: [
-      {
-        id: 'fashion-source-video', kind: 'video', title: '视频素材',
-        x: -445.95734450282305, y: -509.2178940270122, width: 300,
-        content: '等待添加视频素材', status: 'idle', version: 1, createdAt: 1,
-      },
-      {
-        id: 'fashion-keyframes', kind: 'image', title: '参考图片',
-        x: -60.28246141361116, y: -611.5398385508832, width: 300,
-        content: '拖入图片或点击上传', status: 'idle', version: 1, createdAt: 2,
-        imageWidth: 1024, imageHeight: 1024, imageAutoSize: true, imageCount: 1,
-      },
-      {
-        id: 'fashion-motion-prompt', kind: 'text', title: '创意提示词',
-        x: 430.7722174391412, y: -512.5472919018647, width: 360, height: 300,
-        content: '', status: 'idle', version: 1, createdAt: 3,
-      },
-      {
-        id: 'fashion-result-video', kind: 'video', title: '视频素材',
-        x: 986.1992094621554, y: -383.2923526810321, width: 300,
-        content: '等待添加视频素材', status: 'idle', version: 1, createdAt: 4,
-      },
-      {
-        id: 'fashion-product-reference', kind: 'image', title: '参考图片',
-        x: -9.12145312147715, y: -1000.3630944298586, width: 300,
-        content: '拖入图片或点击上传', status: 'idle', version: 1, createdAt: 5,
-        imageWidth: 1024, imageHeight: 1024, imageAutoSize: true, imageCount: 1,
-      },
-      {
-        id: 'fashion-image-prompt', kind: 'text', title: '创意提示词',
-        x: 450.4496059242356, y: -934.4284710809064, width: 360, height: 300,
-        content: '', status: 'idle', version: 1, createdAt: 6,
-      },
-      {
-        id: 'fashion-model-reference', kind: 'image', title: '参考图片',
-        x: 1434.582631624653, y: -263.32531913987236, width: 300,
-        content: '拖入图片或点击上传', status: 'idle', version: 1, createdAt: 7,
-        imageWidth: 1024, imageHeight: 1024, imageAutoSize: true, imageCount: 1,
-      },
-      {
-        id: 'fashion-product-image', kind: 'image', title: '参考图片',
-        x: 1469.0366081886614, y: -1006.6598760395842, width: 300,
-        content: '拖入图片或点击上传', status: 'idle', version: 1, createdAt: 8,
-        imageWidth: 1024, imageHeight: 1024, imageAutoSize: true, imageCount: 1,
-      },
-      {
-        id: 'fashion-flat-lay', kind: 'image', title: '参考图片',
-        x: 2098.710301416598, y: -841.3705838110385, width: 300,
-        content: '拖入图片或点击上传', status: 'idle', version: 1, createdAt: 9,
-        imageWidth: 1024, imageHeight: 1024, imageAutoSize: true, imageCount: 1,
-      },
-    ],
-    edges: [
-      { id: 'fashion-edge-1', source: 'fashion-source-video', target: 'fashion-keyframes', order: 1, enabled: true },
-      { id: 'fashion-edge-2', source: 'fashion-keyframes', target: 'fashion-motion-prompt', order: 1, enabled: true },
-      { id: 'fashion-edge-3', source: 'fashion-motion-prompt', target: 'fashion-result-video', order: 1, enabled: true },
-      { id: 'fashion-edge-4', source: 'fashion-product-reference', target: 'fashion-image-prompt', order: 1, enabled: true },
-      { id: 'fashion-edge-5', source: 'fashion-image-prompt', target: 'fashion-result-video', order: 2, enabled: true },
-      { id: 'fashion-edge-6', source: 'fashion-model-reference', target: 'fashion-result-video', order: 3, enabled: true },
-      { id: 'fashion-edge-7', source: 'fashion-flat-lay', target: 'fashion-result-video', order: 4, enabled: true },
-      { id: 'fashion-edge-8', source: 'fashion-product-image', target: 'fashion-result-video', order: 5, enabled: true },
-    ],
-  },
+const PUBLIC_PROMPT_SOURCE_BASE =
+  'https://raw.githubusercontent.com/yukkcat/image-prompts/main/dist/sources'
+const publicPromptSources: PublicPromptSource[] = [
+  { id: 'banana-prompt-quicker', name: 'Banana Prompt Quicker', url: `${PUBLIC_PROMPT_SOURCE_BASE}/banana-prompt-quicker.json`, homepage: 'https://glidea.github.io/banana-prompt-quicker/' },
+  { id: 'davidwu-gpt-image2-prompts', name: 'DavidWu GPT Image 2', url: `${PUBLIC_PROMPT_SOURCE_BASE}/davidwu-gpt-image2-prompts.json`, homepage: 'https://github.com/davidwuw0811-boop/awesome-gpt-image2-prompts' },
+  { id: 'awesome-gpt-image', name: 'Awesome GPT Image', url: `${PUBLIC_PROMPT_SOURCE_BASE}/awesome-gpt-image.json`, homepage: 'https://github.com/ZeroLu/awesome-gpt-image' },
+  { id: 'awesome-gpt4o-image-prompts', name: 'Awesome GPT-4o', url: `${PUBLIC_PROMPT_SOURCE_BASE}/awesome-gpt4o-image-prompts.json`, homepage: 'https://github.com/ImgEdify/Awesome-GPT4o-Image-Prompts' },
+  { id: 'youmind-gpt-image-2', name: 'YouMind GPT Image 2', url: `${PUBLIC_PROMPT_SOURCE_BASE}/youmind-gpt-image-2.json`, homepage: 'https://github.com/YouMind-OpenLab/awesome-gpt-image-2' },
+  { id: 'youmind-nano-banana-pro', name: 'YouMind Nano Banana Pro', url: `${PUBLIC_PROMPT_SOURCE_BASE}/youmind-nano-banana-pro.json`, homepage: 'https://github.com/YouMind-OpenLab/awesome-nano-banana-pro-prompts' },
 ]
+const builtInCanvasTemplates = builtInCanvasTemplateData as unknown as CanvasTemplate[]
 const FONT_SCALE_KEY = 'infinite:font-scale-v2'
 const INPUT_MODE_KEY = 'infinite:input-mode'
 const MAX_NODE_TEXT_CHARS = 8000
@@ -274,6 +236,7 @@ const audioVolumeNodeId = ref<string | null>(null)
 const audioPlaybackStates = reactive<Record<string, AudioPlaybackState>>({})
 const showTemplatePanel = ref(false)
 const activeTemplateTab = ref<'mine' | 'library'>('mine')
+const activeTemplateKind = ref<'canvas' | 'prompt'>('canvas')
 const canvasTemplates = ref<CanvasTemplate[]>([])
 const editingTemplateId = ref<string | null>(null)
 const templateNameDraft = ref('')
@@ -288,6 +251,16 @@ const editingPromptId = ref<string | null>(null)
 const promptEditDraft = reactive<{ text: string; kind: ServiceKind }>({ text: '', kind: 'text' })
 const showCreatePrompt = ref(false)
 const promptCreateDraft = reactive<{ text: string; kind: ServiceKind }>({ text: '', kind: 'text' })
+const promptManagerView = ref<'mine' | 'library'>('mine')
+const publicPrompts = ref<PublicPrompt[]>([])
+const publicPromptLoading = ref(false)
+const publicPromptError = ref('')
+const publicPromptQuery = ref('')
+const publicPromptSourceId = ref('all')
+const publicPromptCategory = ref('all')
+const publicPromptCategoriesExpanded = ref(false)
+const publicPromptVisibleLimit = ref(36)
+const publicPromptDetail = ref<PublicPrompt | null>(null)
 const mediaPromptNodeId = ref<string | null>(null)
 const imageEditNodeId = ref<string | null>(null)
 const imageVariationRunningIds = ref<string[]>([])
@@ -474,11 +447,49 @@ const roleManagerNode = computed(() =>
 const promptLibraryNode = computed(() =>
   promptLibraryNodeId.value ? nodeMap.value.get(promptLibraryNodeId.value) : undefined,
 )
+const publicPromptCategories = computed(() => {
+  const counts = new Map<string, number>()
+  publicPrompts.value
+    .filter(
+      (prompt) => publicPromptSourceId.value === 'all' || prompt.sourceId === publicPromptSourceId.value,
+    )
+    .forEach((prompt) =>
+      prompt.tags.forEach((tag) => {
+        const value = tag.trim()
+        if (!value || value === 'Official' || value.startsWith('@') || value.includes('@')) return
+        counts.set(value, (counts.get(value) || 0) + 1)
+      }),
+    )
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'zh-CN'))
+    .slice(0, 40)
+    .map(([name, count]) => ({ name, count }))
+})
+const filteredPublicPrompts = computed(() => {
+  const query = publicPromptQuery.value.trim().toLocaleLowerCase()
+  return publicPrompts.value.filter((prompt) => {
+    if (publicPromptSourceId.value !== 'all' && prompt.sourceId !== publicPromptSourceId.value)
+      return false
+    if (publicPromptCategory.value !== 'all' && !prompt.tags.includes(publicPromptCategory.value))
+      return false
+    if (!query) return true
+    return [prompt.title, prompt.prompt, prompt.description, prompt.author, ...prompt.tags]
+      .join('\n')
+      .toLocaleLowerCase()
+      .includes(query)
+  })
+})
+const visiblePublicPrompts = computed(() =>
+  filteredPublicPrompts.value.slice(0, publicPromptVisibleLimit.value),
+)
 const selectedNode = computed(() => {
   const id = selected.value[0]
   return id ? nodeMap.value.get(id) : undefined
 })
 const selectedEdgeData = computed(() => edges.value.find((edge) => edge.id === selectedEdge.value))
+function isEdgeConnectedToSelection(edge: Edge) {
+  return selected.value.includes(edge.source) || selected.value.includes(edge.target)
+}
 const zoomLabel = computed(() => `${Math.round(viewport.zoom * 100)}%`)
 const storageKey = computed(() => `infinite:canvas:${canvasId.value}`)
 const minimapLayout = computed(() => {
@@ -770,8 +781,10 @@ function openPromptLibrary(node: CanvasNode) {
   promptLibraryNodeId.value = node.id
   editingPromptId.value = null
   showCreatePrompt.value = false
+  promptManagerView.value = 'mine'
 }
 function closePromptLibrary() {
+  publicPromptDetail.value = null
   promptLibraryNodeId.value = null
   editingPromptId.value = null
   promptEditDraft.text = ''
@@ -779,6 +792,125 @@ function closePromptLibrary() {
   showCreatePrompt.value = false
   promptCreateDraft.text = ''
   promptCreateDraft.kind = 'text'
+}
+function normalizePublicPrompt(
+  value: unknown,
+  source: PublicPromptSource,
+  index: number,
+): PublicPrompt | null {
+  if (!value || typeof value !== 'object') return null
+  const item = value as Record<string, unknown>
+  const prompt = String(item.prompt || item.text || '').trim()
+  if (!prompt) return null
+  const tags = Array.isArray(item.tags)
+    ? item.tags.map((tag) => String(tag).trim()).filter(Boolean).slice(0, 12)
+    : []
+  return {
+    id: String(item.id || `${source.id}:${index}`),
+    sourceId: source.id,
+    title: String(item.title || item.name || '未命名提示词').trim().slice(0, 160),
+    prompt: prompt.slice(0, 32000),
+    description: String(item.description || '').trim().slice(0, 1000),
+    coverUrl: String(item.coverUrl || item.imageUrl || '').trim(),
+    referenceImageUrls: Array.isArray(item.referenceImageUrls)
+      ? item.referenceImageUrls.map((url) => String(url).trim()).filter(Boolean).slice(0, 12)
+      : [],
+    tags,
+    author: String(item.author || '').trim().slice(0, 120),
+    sourceUrl: String(item.sourceUrl || source.homepage).trim(),
+    imageMode: String(item.imageMode || 'generate'),
+  }
+}
+async function loadPublicPromptLibrary(force = false) {
+  if (publicPromptLoading.value || (publicPrompts.value.length && !force)) return
+  publicPromptLoading.value = true
+  publicPromptError.value = ''
+  const controller = new AbortController()
+  const timeoutId = window.setTimeout(() => controller.abort(), 20000)
+  try {
+    const results = await Promise.allSettled(
+      publicPromptSources.map(async (source) => {
+        const response = await fetch(source.url, { cache: 'force-cache', signal: controller.signal })
+        if (!response.ok) throw new Error(`${source.name} 返回 ${response.status}`)
+        const payload = await response.json()
+        const list = Array.isArray(payload)
+          ? payload
+          : Array.isArray(payload?.items)
+            ? payload.items
+            : Array.isArray(payload?.data)
+              ? payload.data
+              : []
+        return list
+          .map((item: unknown, index: number) => normalizePublicPrompt(item, source, index))
+          .filter((item: PublicPrompt | null): item is PublicPrompt => Boolean(item))
+      }),
+    )
+    const failed = results.filter((result) => result.status === 'rejected').length
+    const merged = results.flatMap((result) => (result.status === 'fulfilled' ? result.value : []))
+    const unique = new Map<string, PublicPrompt>()
+    merged.forEach((prompt) => {
+      const key = `${prompt.sourceId}:${prompt.id}`
+      if (!unique.has(key)) unique.set(key, prompt)
+    })
+    publicPrompts.value = [...unique.values()]
+    if (!publicPrompts.value.length) {
+      publicPromptError.value = '提示词库加载失败，请检查网络连接或稍后重试'
+    } else if (failed) {
+      publicPromptError.value = `${failed} 个来源加载失败，已显示其余 ${publicPrompts.value.length} 条提示词`
+    }
+  } catch (error) {
+    publicPromptError.value =
+      error instanceof DOMException && error.name === 'AbortError'
+        ? '提示词库加载超时，请稍后重试'
+        : error instanceof Error
+          ? `提示词库加载失败：${error.message}`
+          : '提示词库加载失败'
+  } finally {
+    window.clearTimeout(timeoutId)
+    publicPromptLoading.value = false
+  }
+}
+function openPublicPromptLibrary() {
+  promptManagerView.value = 'library'
+  showCreatePrompt.value = false
+  editingPromptId.value = null
+  publicPromptVisibleLimit.value = 36
+  publicPromptCategoriesExpanded.value = false
+  void loadPublicPromptLibrary()
+}
+function toggleTemplatePanel() {
+  showTemplatePanel.value = !showTemplatePanel.value
+  if (showTemplatePanel.value && activeTemplateTab.value === 'library' && activeTemplateKind.value === 'prompt') {
+    void loadPublicPromptLibrary()
+  }
+}
+function setTemplateTab(tab: 'mine' | 'library') {
+  activeTemplateTab.value = tab
+  if (tab === 'library' && activeTemplateKind.value === 'prompt') void loadPublicPromptLibrary()
+}
+function setTemplateKind(kind: 'canvas' | 'prompt') {
+  activeTemplateKind.value = kind
+  if (kind === 'prompt' && activeTemplateTab.value === 'library') void loadPublicPromptLibrary()
+}
+function returnToMyPrompts() {
+  publicPromptDetail.value = null
+  promptManagerView.value = 'mine'
+}
+function openPublicPromptDetail(prompt: PublicPrompt) {
+  publicPromptDetail.value = prompt
+}
+function publicPromptImages(prompt: PublicPrompt) {
+  return [...new Set([prompt.coverUrl, ...prompt.referenceImageUrls].filter(Boolean))]
+}
+function selectPublicPrompt(prompt: PublicPrompt) {
+  const node = promptLibraryNode.value
+  if (!node) return usePublicPromptTemplate(prompt)
+  checkpoint()
+  node.content = prompt.prompt
+  markNodeChanged(node)
+  closePromptLibrary()
+  if (['image', 'video', 'audio'].includes(node.kind)) mediaPromptNodeId.value = node.id
+  flash(`已使用提示词“${prompt.title}”`)
 }
 function startCreatePrompt() {
   editingPromptId.value = null
@@ -857,15 +989,18 @@ function templateNodeShell(node: CanvasNode, index: number): CanvasNode {
     config: { title: '图像提示词', content: '' },
   }
   const kind = node.kind === 'config' ? 'text' : node.kind
+  const isMedia = kind === 'image' || kind === 'video' || kind === 'audio'
+  const savedMediaPrompt = isMedia && !isMediaPlaceholderContent(node.content) ? node.content : ''
+  const savedContent = kind === 'text' ? node.content : savedMediaPrompt
   return {
     id: node.id,
     kind,
-    title: defaults[kind].title,
+    title: node.title.trim() || defaults[kind].title,
     x: node.x,
     y: node.y,
     width: node.width,
     height: node.height,
-    content: defaults[kind].content,
+    content: savedContent,
     status: 'idle',
     version: 1,
     createdAt: index + 1,
@@ -930,7 +1065,7 @@ function importCurrentCanvasTemplate() {
     flash('模板保存失败，浏览器本地存储空间可能不足')
   }
 }
-function startTemplateRename(template: CanvasTemplate) {
+function startTemplateRename(template: Pick<CanvasTemplate, 'id' | 'name'>) {
   editingTemplateId.value = template.id
   templateNameDraft.value = template.name
 }
@@ -968,6 +1103,49 @@ function deleteCanvasTemplate(template: CanvasTemplate) {
     canvasTemplates.value = previousTemplates
     flash('模板删除失败')
   }
+}
+function savedPromptTemplateName(prompt: SavedPrompt, index = 0) {
+  const firstLine = prompt.text.split(/\r?\n/).find((line) => line.trim())?.trim() || ''
+  return firstLine.length > 22 ? `${firstLine.slice(0, 22)}…` : firstLine || `提示词 ${index + 1}`
+}
+function saveSelectedNodeToMyPrompts() {
+  const current = selectedNode.value
+  if (!current?.content.trim()) return flash('请先选择一个有提示词内容的节点')
+  savePromptText(current.content, nodeServiceKind(current))
+}
+function usePromptTemplate(template: SavedPrompt, index = 0) {
+  const templateName = savedPromptTemplateName(template, index)
+  let target = selectedNode.value
+  if (!target || nodeServiceKind(target) !== template.kind) {
+    addNode(template.kind)
+    target = selectedNode.value
+    if (target) target.title = templateName
+  } else {
+    checkpoint()
+  }
+  if (!target) return
+  target.content = template.text
+  markNodeChanged(target)
+  if (['image', 'video', 'audio'].includes(target.kind)) mediaPromptNodeId.value = target.id
+  showTemplatePanel.value = false
+  flash(`已使用提示词模板“${templateName}”`)
+}
+function usePublicPromptTemplate(prompt: PublicPrompt) {
+  let target = selectedNode.value
+  if (!target || nodeServiceKind(target) !== 'image') {
+    addNode('image')
+    target = selectedNode.value
+    if (target) target.title = prompt.title
+  } else {
+    checkpoint()
+  }
+  if (!target) return
+  target.content = prompt.prompt
+  markNodeChanged(target)
+  mediaPromptNodeId.value = target.id
+  publicPromptDetail.value = null
+  showTemplatePanel.value = false
+  flash(`已使用提示词“${prompt.title}”`)
 }
 function templatePreview(template: CanvasTemplate): TemplatePreview {
   if (!template.nodes.length) return { nodes: [], edges: [] }
@@ -1334,6 +1512,75 @@ function resetView() {
   viewport.y = 40
   viewport.zoom = 1
 }
+function autoArrangeNodes() {
+  if (!nodes.value.length) return flash('画布中没有可整理的卡片')
+  checkpoint()
+
+  const nodeById = new Map(nodes.value.map((node) => [node.id, node]))
+  const outgoing = new Map(nodes.value.map((node) => [node.id, [] as string[]]))
+  const indegree = new Map(nodes.value.map((node) => [node.id, 0]))
+  edges.value.forEach((edge) => {
+    if (!edge.enabled || !nodeById.has(edge.source) || !nodeById.has(edge.target)) return
+    outgoing.get(edge.source)?.push(edge.target)
+    indegree.set(edge.target, (indegree.get(edge.target) || 0) + 1)
+  })
+
+  const stableOrder = (a: CanvasNode, b: CanvasNode) =>
+    a.y - b.y || a.x - b.x || a.createdAt - b.createdAt || a.id.localeCompare(b.id)
+  const queue = nodes.value.filter((node) => indegree.get(node.id) === 0).sort(stableOrder)
+  const levels = new Map(nodes.value.map((node) => [node.id, 0]))
+  const processed = new Set<string>()
+  while (queue.length) {
+    const node = queue.shift()!
+    processed.add(node.id)
+    for (const targetId of outgoing.get(node.id) || []) {
+      levels.set(targetId, Math.max(levels.get(targetId) || 0, (levels.get(node.id) || 0) + 1))
+      const nextIndegree = (indegree.get(targetId) || 0) - 1
+      indegree.set(targetId, nextIndegree)
+      if (nextIndegree === 0) {
+        const target = nodeById.get(targetId)
+        if (target) {
+          queue.push(target)
+          queue.sort(stableOrder)
+        }
+      }
+    }
+  }
+
+  // 正常交互会阻止循环；对旧数据中的异常循环也给出稳定的兜底层级。
+  const lastLevel = Math.max(0, ...levels.values())
+  nodes.value.filter((node) => !processed.has(node.id)).sort(stableOrder).forEach((node) => {
+    levels.set(node.id, lastLevel + 1)
+  })
+
+  const groups = new Map<number, CanvasNode[]>()
+  nodes.value.forEach((node) => {
+    const level = levels.get(node.id) || 0
+    const group = groups.get(level) || []
+    group.push(node)
+    groups.set(level, group)
+  })
+  groups.forEach((group) => group.sort(stableOrder))
+
+  const startX = Math.min(...nodes.value.map((node) => node.x))
+  const startY = Math.min(...nodes.value.map((node) => node.y))
+  const horizontalGap = 150
+  const verticalGap = 76
+  let columnX = startX
+  ;[...groups.keys()].sort((a, b) => a - b).forEach((level) => {
+    const group = groups.get(level) || []
+    const columnWidth = Math.max(...group.map((node) => renderedNodeSizes[node.id]?.width || node.width))
+    let rowY = startY
+    group.forEach((node) => {
+      node.x = Math.round(columnX)
+      node.y = Math.round(rowY)
+      const height = renderedNodeSizes[node.id]?.height || node.height || 220
+      rowY += height + verticalGap
+    })
+    columnX += columnWidth + horizontalGap
+  })
+  flash(`已按数据流整理 ${nodes.value.length} 张卡片`)
+}
 function updateCanvasSize() {
   if (!canvasEl.value) return
   canvasSize.width = canvasEl.value.clientWidth
@@ -1553,6 +1800,11 @@ function markNodeChanged(node: CanvasNode) {
 }
 function incomingEdges(nodeId: string) {
   return edges.value.filter((edge) => edge.target === nodeId).sort((a, b) => a.order - b.order)
+}
+function activeInputCount(nodeId: string) {
+  return incomingEdges(nodeId).filter(
+    (edge) => edge.enabled && nodeMap.value.has(edge.source),
+  ).length
 }
 function moveEdge(edge: Edge, direction: -1 | 1) {
   const list = incomingEdges(edge.target)
@@ -4112,7 +4364,7 @@ onUnmounted(() => {
           :class="{ active: showTemplatePanel }"
           title="模板"
           aria-label="打开模板"
-          @click="showTemplatePanel = !showTemplatePanel"
+          @click="toggleTemplatePanel"
         >
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="m12 3 7 4-7 4-7-4 7-4Z"></path>
@@ -4146,17 +4398,31 @@ onUnmounted(() => {
             role="tab"
             :aria-selected="activeTemplateTab === 'mine'"
             :class="{ active: activeTemplateTab === 'mine' }"
-            @click="activeTemplateTab = 'mine'"
+            @click="setTemplateTab('mine')"
           >我的模板</button>
           <button
             role="tab"
             :aria-selected="activeTemplateTab === 'library'"
             :class="{ active: activeTemplateTab === 'library' }"
-            @click="activeTemplateTab = 'library'"
+            @click="setTemplateTab('library')"
           >模板库</button>
         </div>
+        <div class="template-kind-tabs" role="tablist" aria-label="模板类型">
+          <button
+            role="tab"
+            :aria-selected="activeTemplateKind === 'canvas'"
+            :class="{ active: activeTemplateKind === 'canvas' }"
+            @click="setTemplateKind('canvas')"
+          >画布模板</button>
+          <button
+            role="tab"
+            :aria-selected="activeTemplateKind === 'prompt'"
+            :class="{ active: activeTemplateKind === 'prompt' }"
+            @click="setTemplateKind('prompt')"
+          >提示词模板</button>
+        </div>
         <div class="template-panel-body">
-          <div v-if="activeTemplateTab === 'mine'" class="template-mine">
+          <div v-if="activeTemplateTab === 'mine' && activeTemplateKind === 'canvas'" class="template-mine">
             <div class="template-mine-toolbar">
               <span>已保存 {{ canvasTemplates.length }}/{{ MAX_CANVAS_TEMPLATES }}</span>
               <button
@@ -4266,7 +4532,7 @@ onUnmounted(() => {
               <p>点击“导入模板”，保存当前画布的节点、位置和连线</p>
             </div>
           </div>
-          <div v-else class="template-mine template-library-list">
+          <div v-else-if="activeTemplateTab === 'library' && activeTemplateKind === 'canvas'" class="template-mine template-library-list">
             <div class="template-mine-toolbar">
               <span>内置模板 · 所有人可用</span>
             </div>
@@ -4330,6 +4596,95 @@ onUnmounted(() => {
               </article>
             </div>
           </div>
+          <div v-else-if="activeTemplateTab === 'mine'" class="template-mine template-prompt-list">
+            <div class="template-mine-toolbar">
+              <span>来自“我的提示词” · {{ savedPrompts.length }}/{{ MAX_SAVED_PROMPTS }}</span>
+              <button
+                class="template-import-button"
+                :disabled="!selectedNode?.content.trim() || savedPrompts.length >= MAX_SAVED_PROMPTS"
+                @click="saveSelectedNodeToMyPrompts"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M6.5 4.5h11a1 1 0 0 1 1 1v15l-6.5-4-6.5 4v-15a1 1 0 0 1 1-1Z"></path>
+                </svg>
+                保存当前节点
+              </button>
+            </div>
+            <div v-if="savedPrompts.length" class="template-list">
+              <article
+                v-for="(item, index) in savedPrompts"
+                :key="item.id"
+                class="template-card prompt-template-card"
+                tabindex="0"
+              >
+                <div class="template-card-icon prompt-template-kind-icon">{{ serviceKindLabel(item.kind).slice(0, 1) }}</div>
+                <div class="template-card-info">
+                  <b :title="savedPromptTemplateName(item, index)">{{ savedPromptTemplateName(item, index) }}</b>
+                  <small>{{ serviceKindLabel(item.kind) }} · {{ item.text }}</small>
+                </div>
+                <button class="template-use-button" @click="usePromptTemplate(item, index)">使用模板</button>
+                <button
+                  class="template-delete-button"
+                  title="从我的提示词中删除"
+                  :aria-label="`删除提示词模板 ${savedPromptTemplateName(item, index)}`"
+                  @click.stop="deleteSavedPrompt(item)"
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M5 7h14M9 7V4.5h6V7M8 10v7M12 10v7M16 10v7M7 7l1 13h8l1-13"></path>
+                  </svg>
+                </button>
+                <div class="template-preview-popover prompt-template-preview" aria-hidden="true">
+                  <strong>{{ savedPromptTemplateName(item, index) }} · {{ serviceKindLabel(item.kind) }}</strong>
+                  <p>{{ item.text }}</p>
+                  <span>与“我的提示词”同步 · 使用后写入同类型节点</span>
+                </div>
+              </article>
+            </div>
+            <div v-else class="template-empty">
+              <svg viewBox="0 0 48 48" aria-hidden="true">
+                <path d="M12 10h24v28H12zM17 17h14M17 23h14M17 29h9"></path>
+              </svg>
+              <b>暂无提示词模板</b>
+              <p>在节点中保存提示词后，会自动同步显示在这里</p>
+            </div>
+          </div>
+          <div v-else class="template-mine template-library-list template-prompt-list">
+            <div class="template-mine-toolbar">
+              <span>提示词库 · {{ filteredPublicPrompts.length }} 条</span>
+              <button class="template-import-button" :disabled="publicPromptLoading" @click="loadPublicPromptLibrary(true)">↻ 刷新</button>
+            </div>
+            <div class="template-prompt-library-filters">
+              <input v-model="publicPromptQuery" placeholder="搜索标题、提示词、作者或标签" @input="publicPromptVisibleLimit = 36" />
+              <select v-model="publicPromptSourceId" aria-label="提示词来源" @change="publicPromptVisibleLimit = 36">
+                <option value="all">全部来源</option>
+                <option v-for="source in publicPromptSources" :key="source.id" :value="source.id">{{ source.name }}</option>
+              </select>
+            </div>
+            <div v-if="publicPromptLoading && !publicPrompts.length" class="template-empty compact"><b>正在加载提示词库…</b></div>
+            <div v-else-if="visiblePublicPrompts.length" class="template-list">
+              <article
+                v-for="item in visiblePublicPrompts"
+                :key="`${item.sourceId}:${item.id}`"
+                class="template-card template-library-card prompt-template-card"
+                tabindex="0"
+              >
+                <div class="template-card-icon prompt-library-thumbnail">
+                  <img v-if="item.coverUrl" :src="item.coverUrl" alt="" loading="lazy" referrerpolicy="no-referrer" />
+                  <span v-else>图</span>
+                </div>
+                <div class="template-card-info">
+                  <b>{{ item.title }}</b>
+                  <small>{{ publicPromptSources.find((source) => source.id === item.sourceId)?.name || item.sourceId }} · {{ item.description || item.prompt }}</small>
+                </div>
+                <button class="template-view-button" title="查看提示词和参考图片" aria-label="查看提示词详情" @click.stop="openPublicPromptDetail(item)">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"></path><circle cx="12" cy="12" r="2.8"></circle></svg>
+                </button>
+                <button class="template-use-button" @click="usePublicPromptTemplate(item)">使用模板</button>
+              </article>
+            </div>
+            <div v-else class="template-empty compact"><b>没有匹配的提示词</b><p>{{ publicPromptError || '请更换关键词或来源' }}</p></div>
+            <button v-if="filteredPublicPrompts.length > publicPromptVisibleLimit" class="public-prompt-more" @click="publicPromptVisibleLimit += 36">加载更多（{{ visiblePublicPrompts.length }}/{{ filteredPublicPrompts.length }}）</button>
+          </div>
         </div>
       </aside>
 
@@ -4346,16 +4701,23 @@ onUnmounted(() => {
               <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
                 <path d="M0,0 L8,4 L0,8 z" fill="#667085" />
               </marker>
+              <marker id="arrow-highlight" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+                <path d="M0,0 L8,4 L0,8 z" fill="#b4aaff" />
+              </marker>
             </defs>
             <g
               v-for="edge in edges"
               :key="edge.id"
               class="edge"
-              :class="{ selected: selectedEdge === edge.id, disabled: !edge.enabled }"
+              :class="{ selected: selectedEdge === edge.id, connected: isEdgeConnectedToSelection(edge), disabled: !edge.enabled }"
               @pointerdown.stop="selectedEdge = edge.id; selected = []"
             >
               <path class="edge-hit" :d="edgePath(edge)" />
-              <path class="edge-line" :d="edgePath(edge)" marker-end="url(#arrow)" />
+              <path
+                class="edge-line"
+                :d="edgePath(edge)"
+                :marker-end="selectedEdge === edge.id || isEdgeConnectedToSelection(edge) ? 'url(#arrow-highlight)' : 'url(#arrow)'"
+              />
             </g>
             <path v-if="linkingFrom" class="draft-edge" :d="draftPath()" />
           </svg>
@@ -4711,6 +5073,7 @@ onUnmounted(() => {
                 @change="markNodeChanged(node)"
               />
               <footer class="media-generation-footer">
+                <span class="node-input-count">{{ activeInputCount(node.id) }} 个输入</span>
                 <button class="node-add-file-button" @click.stop="openNodeFilePicker(node)">
                   <b>＋</b>
                   <span>添加</span>
@@ -4783,6 +5146,7 @@ onUnmounted(() => {
             <div v-if="isNodeStale(node)" class="stale-notice">上游输入已更新，建议重新生成</div>
 
             <div v-if="node.kind === 'text' || node.kind === 'config'" class="node-foot">
+              <span class="node-input-count">{{ activeInputCount(node.id) }} 个输入</span>
               <button class="node-add-file-button" @click.stop="openNodeFilePicker(node)">
                 <b>＋</b>
                 <span>添加</span>
@@ -4905,6 +5269,9 @@ onUnmounted(() => {
           <button class="zoom-value" @click="resetView">{{ zoomLabel }}</button>
           <button @click="viewport.zoom = Math.min(2, viewport.zoom + .1)">＋</button>
           <button title="重置视图" @click="resetView">⌂</button>
+          <button class="arrange-view-button" title="自动整理卡片" aria-label="自动整理卡片" @click="autoArrangeNodes">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="6" height="5" rx="1"></rect><rect x="15" y="3" width="6" height="5" rx="1"></rect><rect x="15" y="16" width="6" height="5" rx="1"></rect><path d="M9 7.5h3a3 3 0 0 1 3 3v8M12 10.5h3"></path></svg>
+          </button>
           <button class="danger" title="清空画布" @click="clearCanvas">⌫</button>
         </div>
       </section>
@@ -5023,23 +5390,31 @@ onUnmounted(() => {
         class="modal-backdrop role-manager-backdrop"
         @mousedown.self="closePromptLibrary"
       >
-        <section class="role-manager-modal prompt-library-modal" @mousedown.stop>
+        <section class="role-manager-modal prompt-library-modal" :class="{ 'library-view': promptManagerView === 'library' }" @mousedown.stop>
           <header>
             <div>
-              <h2>我的提示词</h2>
-              <p>选择提示词后将写入“{{ promptLibraryNode.title }}”的输入框</p>
+              <h2>{{ promptManagerView === 'mine' ? '我的提示词' : '提示词库' }}</h2>
+              <p>{{ promptManagerView === 'mine' ? '管理本地保存的提示词' : '搜索公开提示词，点击卡片写入当前节点' }} · {{ promptLibraryNode.title }}</p>
             </div>
             <button
+              v-if="promptManagerView === 'mine'"
               class="role-create-button"
               :disabled="savedPrompts.length >= MAX_SAVED_PROMPTS"
               @click="startCreatePrompt"
             >
               ＋ 添加提示词
             </button>
+            <button
+              class="role-create-button prompt-library-switch"
+              @click="promptManagerView === 'mine' ? openPublicPromptLibrary() : returnToMyPrompts()"
+            >
+              {{ promptManagerView === 'mine' ? '提示词库' : '我的提示词' }}
+            </button>
             <button class="close" aria-label="关闭我的提示词" @click="closePromptLibrary">×</button>
           </header>
 
           <div class="role-manager-body">
+            <template v-if="promptManagerView === 'mine'">
             <div class="role-count">已保存 {{ savedPrompts.length }}/{{ MAX_SAVED_PROMPTS }}</div>
             <form v-if="showCreatePrompt" class="role-create-form prompt-create-form" @submit.prevent="saveCreatedPrompt">
               <label>
@@ -5115,10 +5490,151 @@ onUnmounted(() => {
               <b>还没有保存的提示词</b>
               <p>在媒体输入区填写内容后，点击右上角“保存当前提示词”。</p>
             </div>
+            </template>
+            <template v-else>
+              <div class="public-prompt-toolbar">
+                <label class="public-prompt-search">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"></circle><path d="m16 16 4 4"></path></svg>
+                  <input
+                    v-model="publicPromptQuery"
+                    placeholder="搜索标题、提示词、作者或标签"
+                    @input="publicPromptVisibleLimit = 36"
+                  />
+                </label>
+                <select v-model="publicPromptSourceId" aria-label="提示词来源" @change="publicPromptCategory = 'all'; publicPromptVisibleLimit = 36; publicPromptCategoriesExpanded = false">
+                  <option value="all">全部来源</option>
+                  <option v-for="source in publicPromptSources" :key="source.id" :value="source.id">{{ source.name }}</option>
+                </select>
+                <button title="重新加载提示词库" @click="loadPublicPromptLibrary(true)">↻</button>
+              </div>
+              <div class="public-prompt-category-wrap">
+                <div class="public-prompt-categories" :class="{ expanded: publicPromptCategoriesExpanded }">
+                  <button :class="{ active: publicPromptCategory === 'all' }" @click="publicPromptCategory = 'all'; publicPromptVisibleLimit = 36">全部</button>
+                  <button
+                    v-for="category in publicPromptCategories"
+                    :key="category.name"
+                    :class="{ active: publicPromptCategory === category.name }"
+                    @click="publicPromptCategory = category.name; publicPromptVisibleLimit = 36"
+                  >
+                    {{ category.name }} <span>{{ category.count }}</span>
+                  </button>
+                </div>
+                <button
+                  v-if="publicPromptCategories.length > 6"
+                  class="public-prompt-category-toggle"
+                  :class="{ expanded: publicPromptCategoriesExpanded }"
+                  :aria-expanded="publicPromptCategoriesExpanded"
+                  :title="publicPromptCategoriesExpanded ? '收起标签' : '展开全部标签'"
+                  @click="publicPromptCategoriesExpanded = !publicPromptCategoriesExpanded"
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
+                </button>
+              </div>
+              <div v-if="publicPromptError" class="public-prompt-notice">{{ publicPromptError }}</div>
+              <div v-if="publicPromptLoading && !publicPrompts.length" class="public-prompt-loading">
+                <i></i><span>正在加载提示词库…</span>
+              </div>
+              <div v-else-if="visiblePublicPrompts.length" class="public-prompt-grid">
+                <article
+                  v-for="prompt in visiblePublicPrompts"
+                  :key="`${prompt.sourceId}:${prompt.id}`"
+                  class="public-prompt-card"
+                  tabindex="0"
+                  @click="selectPublicPrompt(prompt)"
+                  @keydown.enter.prevent="selectPublicPrompt(prompt)"
+                >
+                  <div class="public-prompt-cover">
+                    <img v-if="prompt.coverUrl" :src="prompt.coverUrl" alt="" loading="lazy" referrerpolicy="no-referrer" />
+                    <span v-else>Prompt</span>
+                    <i>{{ prompt.imageMode === 'edit' ? '图像编辑' : '图像生成' }}</i>
+                    <button
+                      class="public-prompt-view"
+                      type="button"
+                      title="查看提示词和参考图片详情"
+                      aria-label="查看提示词详情"
+                      @click.stop="openPublicPromptDetail(prompt)"
+                      @keydown.enter.stop.prevent="openPublicPromptDetail(prompt)"
+                    >
+                      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"></path><circle cx="12" cy="12" r="2.8"></circle></svg>
+                    </button>
+                  </div>
+                  <div class="public-prompt-card-body">
+                    <b>{{ prompt.title }}</b>
+                    <p>{{ prompt.description || prompt.prompt }}</p>
+                    <div class="public-prompt-tags">
+                      <span v-for="tag in prompt.tags.slice(0, 3)" :key="tag">{{ tag }}</span>
+                    </div>
+                    <small>{{ publicPromptSources.find((source) => source.id === prompt.sourceId)?.name || prompt.sourceId }}<template v-if="prompt.author"> · {{ prompt.author }}</template></small>
+                  </div>
+                </article>
+              </div>
+              <div v-else-if="!publicPromptLoading" class="role-empty public-prompt-empty">
+                <b>没有匹配的提示词</b>
+                <p>尝试更换关键词、来源或分类。</p>
+              </div>
+              <button
+                v-if="filteredPublicPrompts.length > publicPromptVisibleLimit"
+                class="public-prompt-more"
+                @click="publicPromptVisibleLimit += 36"
+              >
+                加载更多（{{ visiblePublicPrompts.length }}/{{ filteredPublicPrompts.length }}）
+              </button>
+            </template>
           </div>
 
           <footer>
             <button class="ghost" @click="closePromptLibrary">关闭</button>
+          </footer>
+        </section>
+      </div>
+    </Transition>
+
+    <Transition name="fade">
+      <div
+        v-if="publicPromptDetail"
+        class="modal-backdrop public-prompt-detail-backdrop"
+        @mousedown.self="publicPromptDetail = null"
+      >
+        <section class="public-prompt-detail-modal" @mousedown.stop>
+          <header>
+            <div>
+              <h2>{{ publicPromptDetail.title }}</h2>
+              <p>{{ publicPromptSources.find((source) => source.id === publicPromptDetail?.sourceId)?.name || publicPromptDetail.sourceId }}<template v-if="publicPromptDetail.author"> · {{ publicPromptDetail.author }}</template></p>
+            </div>
+            <button class="close" aria-label="关闭详情" @click="publicPromptDetail = null">×</button>
+          </header>
+          <div class="public-prompt-detail-body">
+            <section v-if="publicPromptImages(publicPromptDetail).length" class="public-prompt-detail-images">
+              <h3>参考图片</h3>
+              <div>
+                <a
+                  v-for="(imageUrl, index) in publicPromptImages(publicPromptDetail)"
+                  :key="imageUrl"
+                  :href="imageUrl"
+                  target="_blank"
+                  rel="noreferrer"
+                  :title="`打开参考图片 ${index + 1}`"
+                >
+                  <img :src="imageUrl" :alt="`${publicPromptDetail.title} · 参考图片 ${index + 1}`" referrerpolicy="no-referrer" />
+                </a>
+              </div>
+            </section>
+            <section class="public-prompt-detail-copy">
+              <h3>提示词</h3>
+              <p>{{ publicPromptDetail.prompt }}</p>
+              <template v-if="publicPromptDetail.description">
+                <h3>说明</h3>
+                <p>{{ publicPromptDetail.description }}</p>
+              </template>
+              <div v-if="publicPromptDetail.tags.length" class="public-prompt-tags public-prompt-detail-tags">
+                <span v-for="tag in publicPromptDetail.tags" :key="tag">{{ tag }}</span>
+              </div>
+            </section>
+          </div>
+          <footer>
+            <a v-if="publicPromptDetail.sourceUrl" :href="publicPromptDetail.sourceUrl" target="_blank" rel="noreferrer">查看来源</a>
+            <button class="ghost" @click="publicPromptDetail = null">关闭</button>
+            <button @click="selectPublicPrompt(publicPromptDetail)">使用此提示词</button>
           </footer>
         </section>
       </div>
