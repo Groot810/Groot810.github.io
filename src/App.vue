@@ -11,6 +11,7 @@ type NodeKind = 'text' | 'image' | 'video' | 'audio' | 'config'
 type ServiceKind = Exclude<NodeKind, 'config'>
 type AudioSpeed = 0.5 | 0.75 | 1 | 1.25 | 1.5 | 2
 type ReasoningEffort = 'auto' | 'low' | 'medium' | 'high' | 'xhigh'
+<<<<<<< HEAD
 type ModelInterfaceType = 'responses' | 'chat-completions' | 'images' | 'videos' | 'audio-speech' | 'custom'
 type ModelCapabilities = {
   interfaceType: ModelInterfaceType
@@ -20,6 +21,8 @@ type ModelCapabilities = {
   videoDurationMin: number
   videoDurationMax: number
 }
+=======
+>>>>>>> f4a4b51fea8fc7f27881e76306165d9acc82a2ad
 type ModelServiceConfig = {
   providerName: string
   baseUrl: string
@@ -29,7 +32,10 @@ type ModelServiceConfig = {
   maxTokens: number
   reasoningEffort: ReasoningEffort
   script: string
+<<<<<<< HEAD
   capabilities: ModelCapabilities
+=======
+>>>>>>> f4a4b51fea8fc7f27881e76306165d9acc82a2ad
 }
 type ModelChannel = ModelServiceConfig & {
   id: string
@@ -170,12 +176,15 @@ type CanvasMediaRecord = {
   size: number
   createdAt: number
 }
+<<<<<<< HEAD
 type StorageStoreUsage = {
   name: string
   label: string
   records: number
   bytes: number
 }
+=======
+>>>>>>> f4a4b51fea8fc7f27881e76306165d9acc82a2ad
 type FileSourceAction = 'standalone' | 'upstream' | 'replace'
 type CanvasNode = {
   id: string
@@ -263,7 +272,10 @@ const CANVAS_TEMPLATES_KEY = 'infinite:canvas-templates'
 const CANVAS_ROLES_KEY = 'infinite:canvas-roles'
 const SAVED_PROMPTS_KEY = 'infinite:saved-prompts'
 const PROMPT_SOURCES_KEY = 'infinite:prompt-sources'
+<<<<<<< HEAD
 const GENERATION_TASKS_KEY = 'infinite:generation-tasks'
+=======
+>>>>>>> f4a4b51fea8fc7f27881e76306165d9acc82a2ad
 const SNAP_DEFAULT_MIGRATION_KEY = 'infinite:snap-default-off-v1'
 const ASSET_DB_NAME = 'infinite-assets'
 const ASSET_STORE_NAME = 'assets'
@@ -389,6 +401,7 @@ const activeSetting = ref('模型服务')
 const toast = ref('')
 const originStorageUsage = ref(0)
 const originStorageQuota = ref(0)
+<<<<<<< HEAD
 const storageDetails = reactive({
   loading: false,
   error: '',
@@ -404,6 +417,9 @@ const storageDetails = reactive({
 })
 let storageUsageTimer = 0
 let taskClockTimer = 0
+=======
+let storageUsageTimer = 0
+>>>>>>> f4a4b51fea8fc7f27881e76306165d9acc82a2ad
 const linkingFrom = ref<string | null>(null)
 const linkingFromGroupId = ref<string | null>(null)
 const linkingPointer = reactive({ x: 0, y: 0 })
@@ -431,7 +447,10 @@ const standaloneFileInput = ref<HTMLInputElement | null>(null)
 const addFileTargetNodeId = ref<string | null>(null)
 const zoomedImage = ref<CanvasNode | null>(null)
 const expandedTextEditorNodeId = ref<string | null>(null)
+<<<<<<< HEAD
 const expandedTextEditorDraft = ref('')
+=======
+>>>>>>> f4a4b51fea8fc7f27881e76306165d9acc82a2ad
 const imageUpscaleNodeId = ref<string | null>(null)
 const imageUpscaleDraft = reactive({
   sourceWidth: 0,
@@ -456,11 +475,14 @@ let activeAudioStartedAt = 0
 const canvasMediaObjectUrls = new Map<string, string>()
 const showTemplatePanel = ref(false)
 const showAssetPanel = ref(false)
+<<<<<<< HEAD
 const showTaskPanel = ref(false)
 const generationTasks = ref<GenerationTask[]>([])
 const activeTaskFilter = ref<'all' | GenerationTaskStatus>('all')
 const taskClock = ref(Date.now())
 const taskLogTask = ref<GenerationTask | null>(null)
+=======
+>>>>>>> f4a4b51fea8fc7f27881e76306165d9acc82a2ad
 const railLocked = ref(true)
 const railHovered = ref(false)
 const activeAssetKind = ref<'image' | 'video' | 'audio'>('image')
@@ -523,6 +545,7 @@ let autoPanFrame = 0
 let wheelZoomFrame = 0
 let pendingWheelZoomDelta = 0
 let pendingWheelZoomAnchor = { x: 0, y: 0 }
+<<<<<<< HEAD
 let lastTrackpadPinchPoint: { x: number; y: number; at: number } | null = null
 let trackpadPinchResetTimer = 0
 let dragPointer = { x: 0, y: 0 }
@@ -542,6 +565,9 @@ let minimapDrag:
       centerOffsetY: number
     }
   | null = null
+=======
+let dragPointer = { x: 0, y: 0 }
+>>>>>>> f4a4b51fea8fc7f27881e76306165d9acc82a2ad
 let drag:
   | {
       id?: string
@@ -613,10 +639,17 @@ function defaultServiceConfig(kind: ServiceKind): ModelServiceConfig {
     audio: { interfaceType: 'audio-speech', inputKinds: ['text'], outputKinds: ['audio'], imageSizes: ['*'], videoDurationMin: 1, videoDurationMax: 15 },
   }
   const configs: Record<ServiceKind, ModelServiceConfig> = {
+<<<<<<< HEAD
     text: { providerName: 'OpenAI', baseUrl: 'https://api.openai.com/v1', apiKey: '', model: 'gpt-5.5', temperature: 1, maxTokens: 4096, reasoningEffort: 'auto', script: '', capabilities: capabilities.text },
     image: { providerName: 'OpenAI', baseUrl: 'https://api.openai.com/v1', apiKey: '', model: 'gpt-image-2', temperature: 1, maxTokens: 4096, reasoningEffort: 'auto', script: '', capabilities: capabilities.image },
     video: { providerName: 'OpenAI', baseUrl: 'https://api.openai.com/v1', apiKey: '', model: 'sora-2', temperature: 1, maxTokens: 4096, reasoningEffort: 'auto', script: '', capabilities: capabilities.video },
     audio: { providerName: 'OpenAI', baseUrl: 'https://api.openai.com/v1', apiKey: '', model: 'gpt-4o-mini-tts', temperature: 1, maxTokens: 4096, reasoningEffort: 'auto', script: '', capabilities: capabilities.audio },
+=======
+    text: { providerName: 'OpenAI', baseUrl: 'https://api.openai.com/v1', apiKey: '', model: 'gpt-5.5', temperature: 1, maxTokens: 4096, reasoningEffort: 'auto', script: '' },
+    image: { providerName: 'OpenAI', baseUrl: 'https://api.openai.com/v1', apiKey: '', model: 'gpt-image-2', temperature: 1, maxTokens: 4096, reasoningEffort: 'auto', script: '' },
+    video: { providerName: 'OpenAI', baseUrl: 'https://api.openai.com/v1', apiKey: '', model: 'sora-2', temperature: 1, maxTokens: 4096, reasoningEffort: 'auto', script: '' },
+    audio: { providerName: 'OpenAI', baseUrl: 'https://api.openai.com/v1', apiKey: '', model: 'gpt-4o-mini-tts', temperature: 1, maxTokens: 4096, reasoningEffort: 'auto', script: '' },
+>>>>>>> f4a4b51fea8fc7f27881e76306165d9acc82a2ad
   }
   return { ...configs[kind] }
 }
@@ -652,6 +685,7 @@ const reasoningEffortOptions = [
   { value: 'high', label: '高' },
   { value: 'xhigh', label: '极高' },
 ]
+<<<<<<< HEAD
 function normalizeCapabilities(kind: ServiceKind, value?: Partial<ModelCapabilities>): ModelCapabilities {
   const defaults = defaultServiceConfig(kind).capabilities
   const validKinds: ServiceKind[] = ['text', 'image', 'video', 'audio']
@@ -670,6 +704,8 @@ function effectiveInterfaceType(kind: ServiceKind, service: ModelServiceConfig):
   if (service.capabilities.interfaceType !== 'custom') return service.capabilities.interfaceType
   return defaultServiceConfig(kind).capabilities.interfaceType
 }
+=======
+>>>>>>> f4a4b51fea8fc7f27881e76306165d9acc82a2ad
 function channelsFor(kind: ServiceKind) {
   return modelServices[kind]
 }
@@ -1403,6 +1439,7 @@ function openPromptLibrary(node: CanvasNode) {
   promptManagerView.value = 'mine'
 }
 function openExpandedTextEditor(node: CanvasNode) {
+<<<<<<< HEAD
   expandedTextEditorDraft.value = node.content
   expandedTextEditorNodeId.value = node.id
 }
@@ -1418,6 +1455,12 @@ function saveExpandedTextEditor() {
   }
   expandedTextEditorNodeId.value = null
   expandedTextEditorDraft.value = ''
+=======
+  expandedTextEditorNodeId.value = node.id
+}
+function closeExpandedTextEditor() {
+  expandedTextEditorNodeId.value = null
+>>>>>>> f4a4b51fea8fc7f27881e76306165d9acc82a2ad
 }
 function closePromptLibrary() {
   publicPromptDetail.value = null
@@ -1685,10 +1728,14 @@ function openPublicPromptLibrary() {
 }
 function toggleTemplatePanel() {
   showTemplatePanel.value = !showTemplatePanel.value
+<<<<<<< HEAD
   if (showTemplatePanel.value) {
     showAssetPanel.value = false
     showTaskPanel.value = false
   }
+=======
+  if (showTemplatePanel.value) showAssetPanel.value = false
+>>>>>>> f4a4b51fea8fc7f27881e76306165d9acc82a2ad
   if (showTemplatePanel.value && activeTemplateTab.value === 'library' && activeTemplateKind.value === 'prompt') {
     void loadPublicPromptLibrary()
   }
@@ -1697,11 +1744,15 @@ function toggleAssetPanel() {
   showAssetPanel.value = !showAssetPanel.value
   if (showAssetPanel.value) {
     showTemplatePanel.value = false
+<<<<<<< HEAD
     showTaskPanel.value = false
+=======
+>>>>>>> f4a4b51fea8fc7f27881e76306165d9acc82a2ad
     pendingFileSource.action = 'standalone'
     pendingFileSource.targetNodeId = null
   }
 }
+<<<<<<< HEAD
 const filteredGenerationTasks = computed(() => activeTaskFilter.value === 'all'
   ? generationTasks.value
   : generationTasks.value.filter((task) => task.status === activeTaskFilter.value))
@@ -1860,6 +1911,12 @@ function openAssetDatabase() {
   return new Promise<IDBDatabase>((resolve, reject) => {
     const request = indexedDB.open(ASSET_DB_NAME, INDEXED_DB_VERSION)
     request.onupgradeneeded = (event) => {
+=======
+function openAssetDatabase() {
+  return new Promise<IDBDatabase>((resolve, reject) => {
+    const request = indexedDB.open(ASSET_DB_NAME, 2)
+    request.onupgradeneeded = () => {
+>>>>>>> f4a4b51fea8fc7f27881e76306165d9acc82a2ad
       const database = request.result
       if (!database.objectStoreNames.contains(ASSET_STORE_NAME)) {
         database.createObjectStore(ASSET_STORE_NAME, { keyPath: 'id' })
@@ -1867,6 +1924,7 @@ function openAssetDatabase() {
       if (!database.objectStoreNames.contains(CANVAS_MEDIA_STORE_NAME)) {
         database.createObjectStore(CANVAS_MEDIA_STORE_NAME, { keyPath: 'id' })
       }
+<<<<<<< HEAD
       if (event.oldVersion < 3) {
         for (const storeName of [ASSET_STORE_NAME, CANVAS_MEDIA_STORE_NAME]) {
           if (!request.transaction || !database.objectStoreNames.contains(storeName)) continue
@@ -1879,6 +1937,8 @@ function openAssetDatabase() {
           }
         }
       }
+=======
+>>>>>>> f4a4b51fea8fc7f27881e76306165d9acc82a2ad
     }
     request.onsuccess = () => resolve(request.result)
     request.onerror = () => reject(request.error || new Error('无法打开资产库'))
@@ -1888,7 +1948,11 @@ async function putCanvasMedia(record: CanvasMediaRecord) {
   const database = await openAssetDatabase()
   await new Promise<void>((resolve, reject) => {
     const transaction = database.transaction(CANVAS_MEDIA_STORE_NAME, 'readwrite')
+<<<<<<< HEAD
     transaction.objectStore(CANVAS_MEDIA_STORE_NAME).put({ ...record, schemaVersion: LOCAL_DATA_SCHEMA_VERSION })
+=======
+    transaction.objectStore(CANVAS_MEDIA_STORE_NAME).put(record)
+>>>>>>> f4a4b51fea8fc7f27881e76306165d9acc82a2ad
     transaction.oncomplete = () => resolve()
     transaction.onerror = () => reject(transaction.error)
   })
@@ -1991,7 +2055,11 @@ async function putLibraryAsset(asset: LibraryAsset) {
   const database = await openAssetDatabase()
   await new Promise<void>((resolve, reject) => {
     const transaction = database.transaction(ASSET_STORE_NAME, 'readwrite')
+<<<<<<< HEAD
     transaction.objectStore(ASSET_STORE_NAME).put({ ...asset, schemaVersion: LOCAL_DATA_SCHEMA_VERSION })
+=======
+    transaction.objectStore(ASSET_STORE_NAME).put(asset)
+>>>>>>> f4a4b51fea8fc7f27881e76306165d9acc82a2ad
     transaction.oncomplete = () => resolve()
     transaction.onerror = () => reject(transaction.error)
   })
@@ -2116,6 +2184,7 @@ function localAndSessionStorageByteSize() {
   }
   return bytes
 }
+<<<<<<< HEAD
 function storageAreaUsage(storage: Storage) {
   let bytes = 0
   for (let index = 0; index < storage.length; index += 1) {
@@ -2199,6 +2268,8 @@ async function refreshStorageDetails() {
     storageDetails.loading = false
   }
 }
+=======
+>>>>>>> f4a4b51fea8fc7f27881e76306165d9acc82a2ad
 function assetLibraryByteSize() {
   if (!assetLibraryItems.value.length) return 0
   return new Blob([JSON.stringify(assetLibraryItems.value)]).size
@@ -2215,6 +2286,7 @@ async function refreshStorageUsage() {
   }
 }
 const storageUsageLabel = computed(() => formatAssetSize(originStorageUsage.value).replace('大小未知', '0 B'))
+<<<<<<< HEAD
 const storageQuotaPercent = computed(() => {
   if (!storageDetails.quota) return 0
   return Math.min(100, Math.max(0, storageDetails.siteUsage / storageDetails.quota * 100))
@@ -2222,6 +2294,8 @@ const storageQuotaPercent = computed(() => {
 function formatStorageSize(bytes: number) {
   return formatAssetSize(bytes).replace('大小未知', '0 B')
 }
+=======
+>>>>>>> f4a4b51fea8fc7f27881e76306165d9acc82a2ad
 async function saveNodeAsAsset(node: CanvasNode) {
   if (!['image', 'video', 'audio'].includes(node.kind) || !node.url) {
     return flash('当前控件没有可保存的媒体文件')
@@ -2270,7 +2344,10 @@ function chooseAssetLibrarySource() {
   activeAssetKind.value = pendingFileSource.preferredKind
   assetQuery.value = ''
   showTemplatePanel.value = false
+<<<<<<< HEAD
   showTaskPanel.value = false
+=======
+>>>>>>> f4a4b51fea8fc7f27881e76306165d9acc82a2ad
   showAssetPanel.value = true
 }
 function assetNodeFromLibrary(asset: LibraryAsset, x: number, y: number): CanvasNode {
@@ -3324,10 +3401,13 @@ function endResultSplit() {
   resultSplit = null
   window.removeEventListener('pointermove', onResultSplit)
 }
+<<<<<<< HEAD
 function normalizedWheelAxis(delta: number, deltaMode: number, pageSize: number) {
   const unit = deltaMode === 1 ? 16 : deltaMode === 2 ? pageSize : 1
   return Math.max(-120, Math.min(120, delta * unit))
 }
+=======
+>>>>>>> f4a4b51fea8fc7f27881e76306165d9acc82a2ad
 function normalizedWheelDelta(event: WheelEvent, pageHeight: number) {
   const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? pageHeight : 1
   return Math.max(-120, Math.min(120, event.deltaY * unit))
@@ -3353,6 +3433,7 @@ function stopWheelZoom() {
   if (wheelZoomFrame) cancelAnimationFrame(wheelZoomFrame)
   wheelZoomFrame = 0
   pendingWheelZoomDelta = 0
+<<<<<<< HEAD
   window.clearTimeout(trackpadPinchResetTimer)
   lastTrackpadPinchPoint = null
 }
@@ -3371,6 +3452,8 @@ function applyTrackpadPinchPan(event: WheelEvent, rect: DOMRect) {
   trackpadPinchResetTimer = window.setTimeout(() => {
     lastTrackpadPinchPoint = null
   }, 180)
+=======
+>>>>>>> f4a4b51fea8fc7f27881e76306165d9acc82a2ad
 }
 function onWheel(event: WheelEvent) {
   if (
@@ -3384,11 +3467,15 @@ function onWheel(event: WheelEvent) {
   if (inputMode.value === 'mouse' || event.ctrlKey || event.metaKey) {
     const px = event.clientX - rect.left
     const py = event.clientY - rect.top
+<<<<<<< HEAD
     const isTrackpadPinch = inputMode.value === 'trackpad' && (event.ctrlKey || event.metaKey)
     if (isTrackpadPinch) {
       applyTrackpadPinchPan(event, rect)
     }
     scheduleWheelZoom(normalizedWheelDelta(event, rect.height) * (isTrackpadPinch ? 2 : 1), px, py)
+=======
+    scheduleWheelZoom(normalizedWheelDelta(event, rect.height), px, py)
+>>>>>>> f4a4b51fea8fc7f27881e76306165d9acc82a2ad
     return
   }
   viewport.x -= normalizedWheelAxis(event.deltaX, event.deltaMode, rect.width)
@@ -3738,11 +3825,14 @@ function createEndpointConnection(sourceIds: string[], targetIds: string[], sour
     flash('连接会形成循环依赖，已阻止')
     return false
   }
+<<<<<<< HEAD
   const incompatibility = firstConnectionIncompatibility(sourceIds, targetIds)
   if (incompatibility) {
     flash(`无法连接：${incompatibility}`)
     return false
   }
+=======
+>>>>>>> f4a4b51fea8fc7f27881e76306165d9acc82a2ad
   checkpoint()
   const order = edges.value.filter((edge) => targetGroupId ? edge.targetGroupId === targetGroupId : !edge.targetGroupId && edge.target === targetIds[0]).length + 1
   edges.value.push({
@@ -3765,7 +3855,11 @@ function createGroupConnections(sourceIds: string[], targetIds: string[]) {
   let skipped = 0
   let checkpointed = false
   for (const { source, target } of pairs) {
+<<<<<<< HEAD
     if (!nodeMap.value.has(source) || !nodeMap.value.has(target) || source === target || edges.value.some((edge) => edge.source === source && edge.target === target) || hasPath(target, source) || firstConnectionIncompatibility([source], [target])) {
+=======
+    if (!nodeMap.value.has(source) || !nodeMap.value.has(target) || source === target || edges.value.some((edge) => edge.source === source && edge.target === target) || hasPath(target, source)) {
+>>>>>>> f4a4b51fea8fc7f27881e76306165d9acc82a2ad
       skipped += 1
       continue
     }
@@ -4174,6 +4268,7 @@ function modelChannelLabel(channel: ModelChannel) {
 }
 function modelSupportsUpstream(target: CanvasNode, source: CanvasNode) {
   const sourceKind: ServiceKind = source.kind === 'config' ? 'text' : source.kind
+<<<<<<< HEAD
   return serviceForNode(target).capabilities.inputKinds.includes(sourceKind)
 }
 function firstConnectionIncompatibility(sourceIds: string[], targetIds: string[]) {
@@ -4214,6 +4309,15 @@ function generationCapabilityError(node: CanvasNode, upstream = upstreamFor(node
     }
   }
   return ''
+=======
+  const supportedInputs: Record<ServiceKind, ServiceKind[]> = {
+    text: ['text', 'image'],
+    image: ['text', 'image'],
+    video: ['text', 'image', 'video'],
+    audio: ['text'],
+  }
+  return supportedInputs[nodeServiceKind(target)].includes(sourceKind)
+>>>>>>> f4a4b51fea8fc7f27881e76306165d9acc82a2ad
 }
 function isEdgeIncompatible(edge: Edge) {
   const sources = edgeSourceNodeIds(edge).map((id) => nodeMap.value.get(id)).filter((node): node is CanvasNode => Boolean(node))
@@ -4222,7 +4326,11 @@ function isEdgeIncompatible(edge: Edge) {
 }
 function incompatibleEdgeTitle(edge: Edge) {
   if (!isEdgeIncompatible(edge)) return ''
+<<<<<<< HEAD
   return firstConnectionIncompatibility(edgeSourceNodeIds(edge), edgeTargetNodeIds(edge)) || '该连线包含目标模型不支持的输入类型'
+=======
+  return '该分组连线中包含目标模型不支持的上游输入类型'
+>>>>>>> f4a4b51fea8fc7f27881e76306165d9acc82a2ad
 }
 function configuredApiBase(service: ModelServiceConfig) {
   return service.baseUrl.trim().replace(/\/+$/, '')
@@ -5496,7 +5604,10 @@ async function runImageVariation(source: CanvasNode) {
         const children = await createImageVariationResultNodes(source, imageResults, draft)
         selected.value = children[0] ? [children[0].id] : [source.id]
       }
+<<<<<<< HEAD
       finishGenerationTask(task, 'interrupted', '用户主动中断生成')
+=======
+>>>>>>> f4a4b51fea8fc7f27881e76306165d9acc82a2ad
       flash(`已停止生成${imageResults.length ? `，并保留 ${imageResults.length} 张已完成图片` : ''}`)
       return
     }
@@ -5602,7 +5713,10 @@ async function runNode(node: CanvasNode) {
       node.lastGeneration = snapshot
       node.resultText = `已通过 ${service.model} 生成 ${imageCount} 张图像`
       await createImageBatchResultNodes(node, partialImageResults.slice(1), snapshot)
+<<<<<<< HEAD
       finishGenerationTask(task, 'success')
+=======
+>>>>>>> f4a4b51fea8fc7f27881e76306165d9acc82a2ad
       flash(
         `生成完成 · ${imageCount} 张图像 · 使用 ${context.upstream.length} 个上游输入`,
       )
@@ -5675,7 +5789,10 @@ async function runNode(node: CanvasNode) {
         node.resultText = `生成已中断 · 已保留 ${partialImageResults.length} 张完成图像`
         await createImageBatchResultNodes(node, partialImageResults.slice(1), snapshot)
       }
+<<<<<<< HEAD
       finishGenerationTask(task, 'interrupted', '用户主动中断生成')
+=======
+>>>>>>> f4a4b51fea8fc7f27881e76306165d9acc82a2ad
       flash(`已停止生成${partialImageResults.length ? `，并保留 ${partialImageResults.length} 张已完成图片` : ''}`)
       return
     }
@@ -6408,9 +6525,15 @@ function validateImportedCanvas(raw: ImportedCanvasPackage) {
   }
   const edgeIds = new Set<string>()
   const groupIds = new Set(
+<<<<<<< HEAD
     migratedNodes.map((node) => node.groupId).filter((id): id is string => typeof id === 'string' && Boolean(id)),
   )
   for (const value of migratedEdges) {
+=======
+    (raw.nodes as CanvasNode[]).map((node) => node.groupId).filter((id): id is string => typeof id === 'string' && Boolean(id)),
+  )
+  for (const value of raw.edges) {
+>>>>>>> f4a4b51fea8fc7f27881e76306165d9acc82a2ad
     const edge = value as Partial<Edge>
     if (!edge || typeof edge !== 'object' || typeof edge.id !== 'string' || !edge.id.trim()) {
       throw new Error('连线 ID 缺失')
@@ -6696,7 +6819,10 @@ async function exportCanvas() {
     const payload = {
       format: 'infinite-canvas-export',
       version: 2,
+<<<<<<< HEAD
       schemaVersion: LOCAL_DATA_SCHEMA_VERSION,
+=======
+>>>>>>> f4a4b51fea8fc7f27881e76306165d9acc82a2ad
       exportedAt: new Date().toISOString(),
       id: canvasId.value,
       name: canvasName.value,
@@ -7074,9 +7200,13 @@ function loadLocal() {
   loadCanvasIndex()
   const saved = localStorage.getItem(storageKey.value)
   if (saved) {
+<<<<<<< HEAD
     const migrated = migrateCanvasPayload(JSON.parse(saved))
     localStorage.setItem(storageKey.value, JSON.stringify(migrated))
     applyCanvasPayload(migrated)
+=======
+    applyCanvasPayload(JSON.parse(saved))
+>>>>>>> f4a4b51fea8fc7f27881e76306165d9acc82a2ad
     void hydrateCanvasMedia()
   } else {
     seedCanvas()
@@ -7136,9 +7266,12 @@ watch([nodes, edges, () => viewport.x, () => viewport.y, () => viewport.zoom], (
 }, { deep: true })
 watch(fontScale, (value) => localStorage.setItem(FONT_SCALE_KEY, String(value)))
 watch(inputMode, (value) => localStorage.setItem(INPUT_MODE_KEY, value))
+<<<<<<< HEAD
 watch([showSettings, activeSetting], ([visible, section]) => {
   if (visible && section === '存储与隐私') void refreshStorageDetails()
 })
+=======
+>>>>>>> f4a4b51fea8fc7f27881e76306165d9acc82a2ad
 watch(publicPromptSources, () => {
   persistPromptSources()
   publicPrompts.value = []
@@ -7149,11 +7282,17 @@ watch(publicPromptSources, () => {
 }, { deep: true })
 onMounted(() => {
   loadLocal()
+<<<<<<< HEAD
   loadGenerationTasks()
   void loadAssetLibrary()
   void refreshStorageUsage()
   storageUsageTimer = window.setInterval(() => void refreshStorageUsage(), 2500)
   taskClockTimer = window.setInterval(() => { taskClock.value = Date.now() }, 1000)
+=======
+  void loadAssetLibrary()
+  void refreshStorageUsage()
+  storageUsageTimer = window.setInterval(() => void refreshStorageUsage(), 2500)
+>>>>>>> f4a4b51fea8fc7f27881e76306165d9acc82a2ad
   enableFontScaling()
   updateCanvasSize()
   startNodeSizeObserver()
@@ -7170,8 +7309,11 @@ onMounted(() => {
 })
 onUnmounted(() => {
   window.clearInterval(storageUsageTimer)
+<<<<<<< HEAD
   window.clearInterval(taskClockTimer)
   endMinimapDrag()
+=======
+>>>>>>> f4a4b51fea8fc7f27881e76306165d9acc82a2ad
   stopEdgeAutoPan()
   stopWheelZoom()
   generationControllers.forEach((controller) => controller.abort())
@@ -7317,6 +7459,10 @@ onUnmounted(() => {
           <rect x="3" y="5" width="18" height="14" rx="3"></rect>
           <path d="M7 9h1M11.5 9h1M16 9h1M7 13h1M11.5 13h1M16 13h1M8 16h8"></path>
         </svg>
+<<<<<<< HEAD
+=======
+        <span>快捷键</span>
+>>>>>>> f4a4b51fea8fc7f27881e76306165d9acc82a2ad
       </button>
       <button class="top-action" @click="showSettings = true">⚙ <span>配置</span></button>
     </header>
@@ -7340,7 +7486,11 @@ onUnmounted(() => {
           <svg v-else viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10" width="14" height="10" rx="2"></rect><path d="M16 10V7a4 4 0 0 0-7.5-2"></path></svg>
           <span>{{ railLocked ? '锁定' : '收起' }}</span>
         </button>
+<<<<<<< HEAD
         <button v-for="item in toolbarItems" :key="item.kind" :title="item.label" @click="showTemplatePanel = false; showAssetPanel = false; showTaskPanel = false; addNode(item.kind)">
+=======
+        <button v-for="item in toolbarItems" :key="item.kind" :title="item.label" @click="showTemplatePanel = false; showAssetPanel = false; addNode(item.kind)">
+>>>>>>> f4a4b51fea8fc7f27881e76306165d9acc82a2ad
           <b>{{ item.icon }}</b><span>{{ item.label }}</span>
         </button>
         <button title="添加本地文件或资产库内容" aria-label="添加文件或资产" @click="openFileSourceChoice('standalone')">
@@ -7373,6 +7523,7 @@ onUnmounted(() => {
           </svg>
           <span>资产</span>
         </button>
+<<<<<<< HEAD
         <button
           class="task-rail-button"
           :class="{ active: showTaskPanel }"
@@ -7387,6 +7538,8 @@ onUnmounted(() => {
           <i v-if="runningTaskCount">{{ runningTaskCount > 9 ? '9+' : runningTaskCount }}</i>
           <span>任务</span>
         </button>
+=======
+>>>>>>> f4a4b51fea8fc7f27881e76306165d9acc82a2ad
         <input ref="replaceImageInput" hidden type="file" accept="image/*" @change="replaceSelectedImage" />
         <input ref="replaceMediaInput" hidden type="file" accept="video/*,audio/*" @change="replaceSelectedMedia" />
         <input ref="addFileInput" hidden type="file" @change="addFileToNode" />
@@ -7806,6 +7959,7 @@ onUnmounted(() => {
         </div>
       </aside>
 
+<<<<<<< HEAD
       <aside
         v-if="showTaskPanel"
         class="template-panel task-panel"
@@ -7874,6 +8028,8 @@ onUnmounted(() => {
         </div>
       </aside>
 
+=======
+>>>>>>> f4a4b51fea8fc7f27881e76306165d9acc82a2ad
       <section
         ref="canvasEl"
         class="canvas"
@@ -8434,9 +8590,12 @@ onUnmounted(() => {
                     :options="channelsFor(nodeServiceKind(node)).map((channel) => ({ value: channel.id, label: modelChannelLabel(channel) }))"
                     @update:model-value="setNodeModelChannel(node, $event)"
                   />
+<<<<<<< HEAD
                   <button type="button" class="request-inspector-button" title="检查生成请求" aria-label="检查生成请求" @pointerdown.stop="openRequestInspector(node)" @click.stop>
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3.5h10l4 4V20.5H5zM15 3.5v5h4M8 12h8M8 16h6"></path></svg>
                   </button>
+=======
+>>>>>>> f4a4b51fea8fc7f27881e76306165d9acc82a2ad
                   <button
                     class="run-button generation-action"
                     :class="{ running: node.status === 'running' || imageVariationRunningIds.includes(node.id) }"
@@ -8491,12 +8650,19 @@ onUnmounted(() => {
                 v-if="node.kind === 'text'"
                 class="text-expand-editor-button"
                 title="在弹窗中放大编辑提示词"
+<<<<<<< HEAD
                 aria-label="放大编辑"
+=======
+>>>>>>> f4a4b51fea8fc7f27881e76306165d9acc82a2ad
                 @click.stop="openExpandedTextEditor(node)"
               >
                 <svg viewBox="0 0 24 24" aria-hidden="true">
                   <path d="M9 4H4v5M15 4h5v5M9 20H4v-5M15 20h5v-5"></path>
                 </svg>
+<<<<<<< HEAD
+=======
+                放大编辑
+>>>>>>> f4a4b51fea8fc7f27881e76306165d9acc82a2ad
               </button>
               <div v-if="node.kind !== 'config'" class="generation-controls">
                 <CustomSelect
@@ -8508,9 +8674,12 @@ onUnmounted(() => {
                   :options="channelsFor(nodeServiceKind(node)).map((channel) => ({ value: channel.id, label: modelChannelLabel(channel) }))"
                   @update:model-value="setNodeModelChannel(node, $event)"
                 />
+<<<<<<< HEAD
                 <button type="button" class="request-inspector-button" title="检查生成请求" aria-label="检查生成请求" @pointerdown.stop="openRequestInspector(node)" @click.stop>
                   <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3.5h10l4 4V20.5H5zM15 3.5v5h4M8 12h8M8 16h6"></path></svg>
                 </button>
+=======
+>>>>>>> f4a4b51fea8fc7f27881e76306165d9acc82a2ad
                 <button
                   class="run-button generation-action"
                   :class="{ running: node.status === 'running' }"
@@ -8628,11 +8797,19 @@ onUnmounted(() => {
           <div class="file-source-options">
             <button @click="chooseLocalFileSource">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5"></path><path d="M5 13v6h14v-6"></path></svg>
+<<<<<<< HEAD
               <b>本地文件</b>
             </button>
             <button @click="chooseAssetLibrarySource">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 6.5h6l2-2h9a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-17a1 1 0 0 1-1-1v-11a1 1 0 0 1 1-1Z"></path><path d="m6 16 4-4 3 3 2-2 3 3"></path></svg>
               <b>资产库</b>
+=======
+              <b>本地文件</b><span>从电脑选择文件</span>
+            </button>
+            <button @click="chooseAssetLibrarySource">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 6.5h6l2-2h9a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-17a1 1 0 0 1-1-1v-11a1 1 0 0 1 1-1Z"></path><path d="m6 16 4-4 3 3 2-2 3 3"></path></svg>
+              <b>资产库</b><span>选择已保存的媒体资产</span>
+>>>>>>> f4a4b51fea8fc7f27881e76306165d9acc82a2ad
             </button>
           </div>
         </section>
@@ -8640,6 +8817,7 @@ onUnmounted(() => {
     </Transition>
 
     <Transition name="fade">
+<<<<<<< HEAD
       <div v-if="taskLogTask" class="modal-backdrop task-log-backdrop" @mousedown.self="taskLogTask = null">
         <section class="task-log-modal" role="dialog" aria-modal="true" aria-labelledby="task-log-title" @mousedown.stop>
           <header>
@@ -8718,11 +8896,18 @@ onUnmounted(() => {
         v-if="expandedTextEditorNode"
         class="modal-backdrop text-expanded-editor-backdrop"
         @mousedown.self="cancelExpandedTextEditor"
+=======
+      <div
+        v-if="expandedTextEditorNode"
+        class="modal-backdrop text-expanded-editor-backdrop"
+        @mousedown.self="closeExpandedTextEditor"
+>>>>>>> f4a4b51fea8fc7f27881e76306165d9acc82a2ad
       >
         <section class="text-expanded-editor-modal" role="dialog" aria-modal="true" aria-labelledby="text-expanded-editor-title" @mousedown.stop>
           <header>
             <div>
               <h2 id="text-expanded-editor-title">编辑提示词</h2>
+<<<<<<< HEAD
               <p>{{ expandedTextEditorNode.title }} · 保存后写回节点</p>
             </div>
             <button class="close" aria-label="关闭放大编辑" @click="cancelExpandedTextEditor">×</button>
@@ -8738,6 +8923,23 @@ onUnmounted(() => {
           <footer>
             <button class="secondary" @click="cancelExpandedTextEditor">取消</button>
             <button @click="saveExpandedTextEditor">保存</button>
+=======
+              <p>{{ expandedTextEditorNode.title }} · 与节点输入区实时同步</p>
+            </div>
+            <button class="close" aria-label="关闭放大编辑" @click="closeExpandedTextEditor">×</button>
+          </header>
+          <div class="text-expanded-editor-body" @wheel.stop>
+            <NodePromptEditor
+              v-model="expandedTextEditorNode.content"
+              :placeholder="nodePlaceholder(expandedTextEditorNode)"
+              :upstream="upstreamFor(expandedTextEditorNode.id)"
+              @change="markNodeChanged(expandedTextEditorNode)"
+            />
+          </div>
+          <footer>
+            <span>弹窗与节点使用同一份内容，关闭后不会丢失修改。</span>
+            <button @click="closeExpandedTextEditor">完成</button>
+>>>>>>> f4a4b51fea8fc7f27881e76306165d9acc82a2ad
           </footer>
         </section>
       </div>
