@@ -265,6 +265,7 @@ watch(
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   overscroll-behavior: contain;
+  cursor: text;
 }
 .prompt-editor-content:empty::before {
   content: attr(data-placeholder);
