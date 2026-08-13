@@ -13,6 +13,7 @@ const props = defineProps<{
   modelValue: string
   placeholder?: string
   upstream: MentionOption[]
+  expanded?: boolean
 }>()
 const emit = defineEmits<{
   'update:modelValue': [value: string]
@@ -209,7 +210,7 @@ watch(
 </script>
 
 <template>
-  <div class="node-prompt-editor" @pointerdown.stop @wheel.stop>
+  <div class="node-prompt-editor" :class="{ expanded }" @pointerdown.stop @wheel.stop>
     <div
       ref="editor"
       class="prompt-editor-content"
@@ -254,6 +255,24 @@ watch(
   color: #bac0ca;
   user-select: text;
 }
+.node-prompt-editor.expanded {
+  height: 100%;
+  min-height: 0;
+  flex: 1 1 auto;
+  border: 1px solid #353b47;
+  border-radius: 10px;
+  background: #111319;
+}
+.node-prompt-editor.expanded:focus-within {
+  border-color: #786bec;
+  box-shadow: 0 0 0 2px #786bec20;
+}
+.node-prompt-editor.expanded .prompt-editor-content {
+  min-height: 0;
+  padding: 15px 16px;
+  font-size: 12px;
+  line-height: 1.7;
+}
 .prompt-editor-content {
   width: 100%;
   height: 100%;
@@ -265,6 +284,7 @@ watch(
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   overscroll-behavior: contain;
+  cursor: text;
 }
 .prompt-editor-content:empty::before {
   content: attr(data-placeholder);
