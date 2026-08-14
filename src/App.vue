@@ -357,6 +357,9 @@ const selectedEdge = ref<string | null>(null)
 const viewport = reactive({ x: 0, y: 0, zoom: 1 })
 const mode = ref<'select' | 'hand'>('select')
 const showMinimap = ref(true)
+const showNodeSearch = ref(false)
+const nodeSearchQuery = ref('')
+const nodeSearchInput = ref<HTMLInputElement | null>(null)
 const showSettings = ref(false)
 const showShortcutHelp = ref(false)
 const showProjectMenu = ref(false)
@@ -859,6 +862,22 @@ const settingGroups = [
 ]
 
 const nodeMap = computed(() => new Map(nodes.value.map((node) => [node.id, node])))
+const nodeSearchResults = computed(() => {
+  const query = nodeSearchQuery.value.trim().toLocaleLowerCase()
+  if (!query) return nodes.value.slice().sort((a, b) => a.createdAt - b.createdAt).slice(0, 30)
+  return nodes.value
+    .filter((node) =>
+      [node.title, node.content, node.resultText, node.imagePrompt, node.audioInstructions]
+        .filter(Boolean)
+        .some((value) => String(value).toLocaleLowerCase().includes(query)),
+    )
+    .sort((a, b) => {
+      const aTitle = a.title.toLocaleLowerCase().includes(query) ? 0 : 1
+      const bTitle = b.title.toLocaleLowerCase().includes(query) ? 0 : 1
+      return aTitle - bTitle || a.createdAt - b.createdAt
+    })
+    .slice(0, 30)
+})
 const roleManagerNode = computed(() =>
   roleManagerNodeId.value ? nodeMap.value.get(roleManagerNodeId.value) : undefined,
 )
@@ -3534,6 +3553,28 @@ function resetView() {
   viewport.x = 50
   viewport.y = 40
   viewport.zoom = 1
+}
+function nodeSearchKindLabel(kind: NodeKind) {
+  return ({ text: '文本', image: '图片', video: '视频', audio: '音频', config: '配置' } as Record<NodeKind, string>)[kind]
+}
+function nodeSearchPreview(node: CanvasNode) {
+  const text = [node.content, node.resultText, node.imagePrompt, node.audioInstructions]
+    .find((value) => value?.trim())
+    ?.replace(/\s+/g, ' ')
+    .trim()
+  return text || '暂无提示词内容'
+}
+async function toggleNodeSearch() {
+  showNodeSearch.value = !showNodeSearch.value
+  if (!showNodeSearch.value) return
+  await nextTick()
+  nodeSearchInput.value?.focus()
+  nodeSearchInput.value?.select()
+}
+function locateNodeFromSearch(node: CanvasNode) {
+  focusCanvasAgentNode(node.id)
+  showNodeSearch.value = false
+  flash(`已定位到“${node.title}”`)
 }
 function arrangeNodeSubset(targetNodes: CanvasNode[], successMessage: string) {
   if (!targetNodes.length) return flash('没有可整理的卡片')
@@ -7227,6 +7268,11 @@ function loadLocal() {
   )
 }
 function onKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape' && showNodeSearch.value) {
+    event.preventDefault()
+    showNodeSearch.value = false
+    return
+  }
   if (event.key === 'Escape' && showShortcutHelp.value) {
     event.preventDefault()
     showShortcutHelp.value = false
@@ -8746,6 +8792,33 @@ onUnmounted(() => {
           </div>
         </div>
 
+        <div v-if="showNodeSearch" class="node-search-panel" @pointerdown.stop @wheel.stop>
+          <header>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"></circle><path d="m16 16 4 4"></path></svg>
+            <input
+              ref="nodeSearchInput"
+              v-model="nodeSearchQuery"
+              type="search"
+              placeholder="搜索节点标题或提示词…"
+              aria-label="搜索节点标题或提示词"
+              @keydown.enter.prevent="nodeSearchResults[0] && locateNodeFromSearch(nodeSearchResults[0])"
+            />
+            <button title="关闭搜索" aria-label="关闭搜索" @click="showNodeSearch = false">×</button>
+          </header>
+          <div v-if="nodeSearchResults.length" class="node-search-results">
+            <button v-for="node in nodeSearchResults" :key="node.id" @click="locateNodeFromSearch(node)">
+              <span :class="`node-search-kind ${node.kind}`">{{ nodeSearchKindLabel(node.kind) }}</span>
+              <span class="node-search-copy">
+                <b>{{ node.title }}</b>
+                <small>{{ nodeSearchPreview(node) }}</small>
+              </span>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v3M12 18v3M3 12h3M18 12h3"></path><circle cx="12" cy="12" r="4"></circle></svg>
+            </button>
+          </div>
+          <div v-else class="node-search-empty">没有找到匹配的节点</div>
+          <footer>共 {{ nodeSearchResults.length }} 个结果 · Enter 定位第一项</footer>
+        </div>
+
         <div class="view-controls">
           <button @click="showMinimap = !showMinimap">⌗</button>
           <button @click="viewport.zoom = Math.max(.35, viewport.zoom - .1)">−</button>
@@ -8754,6 +8827,15 @@ onUnmounted(() => {
           <button title="重置视图" @click="resetView">⌂</button>
           <button class="arrange-view-button" title="自动整理卡片" aria-label="自动整理卡片" @click="autoArrangeNodes">
             <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="6" height="5" rx="1"></rect><rect x="15" y="3" width="6" height="5" rx="1"></rect><rect x="15" y="16" width="6" height="5" rx="1"></rect><path d="M9 7.5h3a3 3 0 0 1 3 3v8M12 10.5h3"></path></svg>
+          </button>
+          <button
+            class="node-search-toggle"
+            :class="{ active: showNodeSearch }"
+            title="搜索与定位节点"
+            aria-label="搜索与定位节点"
+            @click.stop="toggleNodeSearch"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6"></circle><path d="m15 15 4.5 4.5"></path></svg>
           </button>
           <button class="danger" title="清空画布" @click="clearCanvas">⌫</button>
         </div>
