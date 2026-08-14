@@ -27,12 +27,6 @@ const REFERENCE_TITLE_MAX_CHARS = 10
 let savedRange: Range | null = null
 
 const options = computed(() => props.upstream.filter((node) => node.kind !== 'config'))
-const kindNames: Record<Exclude<MentionKind, 'config'>, string> = {
-  text: '文本',
-  image: '图片',
-  video: '视频',
-  audio: '音频',
-}
 const kindIcons: Record<Exclude<MentionKind, 'config'>, string> = {
   text: 'T',
   image: '▣',
@@ -40,11 +34,6 @@ const kindIcons: Record<Exclude<MentionKind, 'config'>, string> = {
   audio: '♪',
 }
 
-function optionLabel(option: MentionOption) {
-  if (option.kind === 'config') return option.title
-  const sameKind = options.value.filter((node) => node.kind === option.kind)
-  return `${kindNames[option.kind]} ${sameKind.findIndex((node) => node.id === option.id) + 1}`
-}
 function truncateReferenceTitle(title: string) {
   const characters = Array.from(title)
   return characters.length > REFERENCE_TITLE_MAX_CHARS
@@ -71,7 +60,7 @@ function createMention(option?: MentionOption, id?: string) {
   }
   const label = document.createElement('span')
   label.textContent = option
-    ? `${optionLabel(option)} · ${truncateReferenceTitle(option.title)}`
+    ? truncateReferenceTitle(option.title)
     : '已断开的资源'
   chip.appendChild(label)
   return chip
@@ -235,10 +224,7 @@ watch(
       >
         <img v-if="option.kind === 'image' && option.url" :src="option.url" alt="" draggable="false" />
         <i v-else>{{ option.kind === 'config' ? '!' : kindIcons[option.kind] }}</i>
-        <span>
-          <b>{{ optionLabel(option) }}</b>
-          <small :title="option.title">{{ truncateReferenceTitle(option.title) }}</small>
-        </span>
+        <b :title="option.title">{{ option.title }}</b>
       </button>
     </div>
   </div>
@@ -345,7 +331,7 @@ watch(
 }
 .mention-menu button {
   width: 100%;
-  min-height: 42px;
+  min-height: 40px;
   padding: 5px 7px;
   border: 0;
   border-radius: 7px;
@@ -376,19 +362,13 @@ watch(
   color: #b9b0ff;
   font-style: normal;
 }
-.mention-menu span {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
 .mention-menu b {
-  font-size: 9px;
-}
-.mention-menu small {
+  min-width: 0;
+  flex: 1;
   overflow: hidden;
-  color: #777f8d;
-  font-size: 8px;
+  color: #cbd0d9;
+  font-size: 9px;
+  font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
 }

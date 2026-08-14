@@ -2,7 +2,6 @@
 
 基于 Vue 3、TypeScript 和 Vite 的本地优先节点式 AI 创作工作台。文本、图片、视频和音频节点通过有向连线传递真实上下文，可分别接入不同的 OpenAI 兼容模型服务。
 
-> 项目仍在持续开发。当前适合本地创作、工作流验证和静态部署；正式公开服务前，建议增加服务端密钥代理、自动化测试与数据迁移机制。
 
 ## 快速导航
 
@@ -190,8 +189,9 @@ Base URL 会原样使用，不会自动补 `/v1`。“测试模型”默认请�
 | Awesome GPT-4o | [ImgEdify/Awesome-GPT4o-Image-Prompts](https://github.com/ImgEdify/Awesome-GPT4o-Image-Prompts) |
 | YouMind GPT Image 2 | [YouMind-OpenLab/awesome-gpt-image-2](https://github.com/YouMind-OpenLab/awesome-gpt-image-2) |
 | YouMind Nano Banana Pro | [YouMind-OpenLab/awesome-nano-banana-pro-prompts](https://github.com/YouMind-OpenLab/awesome-nano-banana-pro-prompts) |
+| FreestyleFly GPT Image 2 | [freestylefly/awesome-gpt-image-2](https://github.com/freestylefly/awesome-gpt-image-2) |
 
-项目读取 [yukkcat/image-prompts 的统一 JSON](https://github.com/yukkcat/image-prompts/tree/main/dist/sources)，用于字段标准化、搜索、标签筛选和详情展示。该仓库只是格式转换与分发层；提示词、图片、作者署名及许可仍以各上游项目为准。使用或再分发前请检查相应许可证。
+项目读取 [yukkcat/image-prompts 的统一 JSON](https://github.com/yukkcat/image-prompts/tree/main/dist/sources)，用于字段标准化、搜索、标签筛选和详情展示，并在 `public/prompt-library/sources/` 保存随站点构建发布的本地 JSON 副本。`freestylefly-gpt-image-2.json` 当前包含 517 条标准化记录。该仓库只是格式转换与分发层；提示词、图片、作者署名及许可仍以各上游项目为准。使用或再分发前请检查相应许可证。
 
 用户也可以在“配置 → 提示词来源”添加公开 JSON URL，并选择是否自动映射常见字段。
 
@@ -210,6 +210,9 @@ Base URL 会原样使用，不会自动补 `/v1`。“测试模型”默认请�
 | `Ctrl/Cmd + Shift + Z` | 重做 |
 | `Ctrl/Cmd + S` | 保存画布 |
 | `Ctrl/Cmd + 拖动` | 框选多个节点 |
+| `Ctrl/Cmd + A` | 全选所有节点 |
+| `Ctrl/Cmd + G` | 将选中的多个节点设为分组 |
+| `Shift + 方向键` | 将选中节点微调 10px |
 | `Delete` / `Backspace` | 删除选中节点或连线 |
 | `Ctrl/Cmd + Enter` | 完成 AI 结果文本编辑 |
 | `Esc` | 取消连线或关闭当前输入面板 |
@@ -245,10 +248,10 @@ ecshopx-canvas 网页执行创建、连接、修改或生成操作
 
 **方法一：使用 Git 下载**
 
-先在终端进入希望保存项目的目录。例如想把项目放到 Windows 的“下载”文件夹：
+先在终端进入希望保存项目的目录。
 
 ```powershell
-cd "$HOME\Downloads"
+cd "项目路径"
 ```
 
 然后下载项目：
@@ -285,15 +288,6 @@ dir
 
 如果列表中能看到 `package.json`、`plugins` 和 `.agents`，说明终端已经位于正确的项目根目录。后面的插件安装命令都必须在这个目录中执行。
 
-继续检查插件市场清单和插件清单是否真的存在：
-
-```powershell
-Test-Path ".agents\plugins\marketplace.json"
-Test-Path "plugins\ecshopx-canvas\.codex-plugin\plugin.json"
-```
-
-两条命令都必须返回 `True`。如果返回 `False`，说明下载的项目版本不完整、下载了旧版本，或者项目维护者尚未把插件文件提交到 GitHub；此时不要继续执行安装命令。
-
 #### 第二步：安装 Codex 插件
 
 确保电脑已经安装 Codex 和 Node.js，然后在刚才的 `ecshopx-canvas` 文件夹中运行：
@@ -303,15 +297,7 @@ codex plugin marketplace add .
 codex plugin add ecshopx-canvas@ecshopx-canvas-local
 ```
 
-第一条命令只是把当前项目注册为一个插件市场源，不会直接安装插件。Codex 会读取：
-
-```text
-.agents/plugins/marketplace.json
-```
-
-然后第二条命令才会从这个市场源安装 `ecshopx-canvas` 插件。
-
-看到安装成功提示后，关闭旧的 Codex 任务并新建一个任务。已经打开的旧任务不会自动加载新插件。
+看到安装成功提示后，新建一个Codex任务。已经打开的旧任务不会自动加载新插件。
 
 #### 第三步：打开画布网页
 
@@ -398,7 +384,21 @@ codex plugin add ecshopx-canvas@ecshopx-canvas-local
 
 ### 不再使用插件
 
-可以在 Codex 的插件管理界面中卸载 `ecshopx-canvas`。卸载插件不会删除浏览器中保存的画布、模板、提示词或资产。
+可以在 Codex 的插件管理界面中卸载 `ecshopx-canvas`，也可以在终端运行：
+
+```bash
+codex plugin remove ecshopx-canvas@ecshopx-canvas-local
+```
+
+如果以前还通过 `codex mcp add` 手动添加过同名 MCP，需要另外移除：
+
+```bash
+codex mcp remove ecshopx-canvas
+```
+
+通过插件自动安装的 MCP 会随插件一同移除，不需要重复执行第二条命令。如果终端提示不存在 `ecshopx-canvas` MCP，说明没有手动配置，可以忽略。
+
+卸载插件或移除 MCP 不会删除浏览器中保存的画布、模板、提示词或资产。操作完成后请新建 Codex 任务，使插件状态完全刷新。
 
 ### 连接失败排查
 
@@ -408,19 +408,6 @@ codex plugin add ecshopx-canvas@ecshopx-canvas-local
 4. 确认电脑没有其他程序占用 `43128` 端口。
 5. 在线网页无法连接时，检查浏览器是否禁止网页访问本机回环地址。
 6. 更换在线域名后，需要同步更新 Agent 的来源白名单，否则连接会返回 `403`。
-
-如果安装市场源时出现下面的错误：
-
-```text
-does not contain a supported manifest
-```
-
-表示传给 `codex plugin marketplace add` 的目录中不存在 Codex 支持的市场清单。请确认：
-
-1. 终端当前位于项目根目录，而不是 `plugins/ecshopx-canvas` 子目录；
-2. `.agents/plugins/marketplace.json` 确实存在；
-3. `plugins/ecshopx-canvas/.codex-plugin/plugin.json` 确实存在；
-4. 从 GitHub 下载时使用的是包含插件文件的最新版本。
 
 ### 在线地址与自定义域名
 

@@ -282,6 +282,7 @@ const DEFAULT_PUBLIC_PROMPT_SOURCES: PublicPromptSource[] = [
   { id: 'awesome-gpt4o-image-prompts', name: 'Awesome GPT-4o', url: `${PUBLIC_PROMPT_SOURCE_BASE}/awesome-gpt4o-image-prompts.json`, homepage: 'https://github.com/ImgEdify/Awesome-GPT4o-Image-Prompts', enabled: true, builtIn: true, autoMap: true },
   { id: 'youmind-gpt-image-2', name: 'YouMind GPT Image 2', url: `${PUBLIC_PROMPT_SOURCE_BASE}/youmind-gpt-image-2.json`, homepage: 'https://github.com/YouMind-OpenLab/awesome-gpt-image-2', enabled: true, builtIn: true, autoMap: true },
   { id: 'youmind-nano-banana-pro', name: 'YouMind Nano Banana Pro', url: `${PUBLIC_PROMPT_SOURCE_BASE}/youmind-nano-banana-pro.json`, homepage: 'https://github.com/YouMind-OpenLab/awesome-nano-banana-pro-prompts', enabled: true, builtIn: true, autoMap: true },
+  { id: 'freestylefly-gpt-image-2', name: 'FreestyleFly GPT Image 2', url: `${PUBLIC_PROMPT_SOURCE_BASE}/freestylefly-gpt-image-2.json`, homepage: 'https://github.com/freestylefly/awesome-gpt-image-2', enabled: true, builtIn: true, autoMap: true },
 ]
 const publicPromptSources = reactive<PublicPromptSource[]>(cloneValue(DEFAULT_PUBLIC_PROMPT_SOURCES))
 const inputModeOptions = [
@@ -294,6 +295,8 @@ const shortcutGroups = [
     items: [
       { keys: ['Ctrl / ⌘', 'C'], label: '复制选中的控件' },
       { keys: ['Ctrl / ⌘', 'V'], label: '粘贴控件' },
+      { keys: ['Ctrl / ⌘', 'A'], label: '全选所有节点' },
+      { keys: ['Ctrl / ⌘', 'G'], label: '将选中的多个节点设为分组' },
       { keys: ['Ctrl / ⌘', 'Z'], label: '撤销' },
       { keys: ['Ctrl / ⌘', 'Shift', 'Z'], label: '重做' },
       { keys: ['Delete / Backspace'], label: '删除选中的控件或连线' },
@@ -304,6 +307,7 @@ const shortcutGroups = [
     title: '画布',
     items: [
       { keys: ['Ctrl / ⌘', '拖动'], label: '框选多个控件' },
+      { keys: ['Shift', '方向键'], label: '将选中节点微调 10px' },
       { keys: ['V'], label: '切换到选择模式' },
       { keys: ['H'], label: '切换到画布拖动模式' },
       { keys: ['Esc'], label: '取消连线或关闭当前媒体输入面板' },
@@ -357,6 +361,9 @@ const selectedEdge = ref<string | null>(null)
 const viewport = reactive({ x: 0, y: 0, zoom: 1 })
 const mode = ref<'select' | 'hand'>('select')
 const showMinimap = ref(true)
+const showNodeSearch = ref(false)
+const nodeSearchQuery = ref('')
+const nodeSearchInput = ref<HTMLInputElement | null>(null)
 const showSettings = ref(false)
 const showShortcutHelp = ref(false)
 const showProjectMenu = ref(false)
@@ -859,6 +866,22 @@ const settingGroups = [
 ]
 
 const nodeMap = computed(() => new Map(nodes.value.map((node) => [node.id, node])))
+const nodeSearchResults = computed(() => {
+  const query = nodeSearchQuery.value.trim().toLocaleLowerCase()
+  if (!query) return nodes.value.slice().sort((a, b) => a.createdAt - b.createdAt).slice(0, 30)
+  return nodes.value
+    .filter((node) =>
+      [node.title, node.content, node.resultText, node.imagePrompt, node.audioInstructions]
+        .filter(Boolean)
+        .some((value) => String(value).toLocaleLowerCase().includes(query)),
+    )
+    .sort((a, b) => {
+      const aTitle = a.title.toLocaleLowerCase().includes(query) ? 0 : 1
+      const bTitle = b.title.toLocaleLowerCase().includes(query) ? 0 : 1
+      return aTitle - bTitle || a.createdAt - b.createdAt
+    })
+    .slice(0, 30)
+})
 const roleManagerNode = computed(() =>
   roleManagerNodeId.value ? nodeMap.value.get(roleManagerNodeId.value) : undefined,
 )
@@ -1683,6 +1706,15 @@ function openPublicPromptLibrary() {
   editingPromptId.value = null
   publicPromptVisibleLimit.value = 36
   publicPromptCategoriesExpanded.value = false
+  void loadPublicPromptLibrary()
+}
+function openFullPromptLibraryFromTemplates() {
+  showTemplatePanel.value = false
+  promptLibraryNodeId.value = selectedNode.value?.id ?? null
+  showPromptManager.value = true
+  promptManagerView.value = 'library'
+  showCreatePrompt.value = false
+  editingPromptId.value = null
   void loadPublicPromptLibrary()
 }
 function toggleTemplatePanel() {
@@ -2929,14 +2961,29 @@ async function createUpscaledImageNode() {
     imageUpscaleDraft.running = false
   }
 }
+let lastToolbarCreatedNodeId: string | null = null
+function addToolbarNode(kind: NodeKind) {
+  const previous =
+    selected.value.length === 1 && selected.value[0] === lastToolbarCreatedNodeId
+      ? nodeMap.value.get(lastToolbarCreatedNodeId!)
+      : undefined
+  addNode(kind)
+  const created = selectedNode.value
+  if (!created) return
+  if (previous) {
+    created.x = previous.x + 48
+    created.y = previous.y + 48
+  }
+  lastToolbarCreatedNodeId = created.id
+}
 function addNode(kind: NodeKind, offset = 0) {
   checkpoint()
   const defaults: Record<NodeKind, Partial<CanvasNode>> = {
-    text: { title: '创意提示词', content: '' },
-    image: { title: '参考图片', content: '拖入图片或点击上传' },
-    video: { title: '视频素材', content: '等待添加视频素材' },
-    audio: { title: '音频素材', content: '00:00  ━━━━━━━━━  00:00' },
-    config: { title: '图像生成', content: '电影感产品摄影，柔和侧光', status: 'idle' },
+    text: { content: '' },
+    image: { content: '拖入图片或点击上传' },
+    video: { content: '等待添加视频素材' },
+    audio: { content: '00:00  ━━━━━━━━━  00:00' },
+    config: { content: '电影感产品摄影，柔和侧光', status: 'idle' },
   }
   const center = screenToCanvas(window.innerWidth * 0.47 + offset, window.innerHeight * 0.5 + offset)
   const nodeWidth = kind === 'text' ? 360 : kind === 'config' ? 310 : 300
@@ -2944,7 +2991,7 @@ function addNode(kind: NodeKind, offset = 0) {
   const node: CanvasNode = {
     id: `node-${uid()}`,
     kind,
-    title: defaults[kind].title!,
+    title: nextDefaultNodeTitle(kind),
     content: defaults[kind].content!,
     status: defaults[kind].status,
     x: center.x - nodeWidth / 2,
@@ -2969,6 +3016,23 @@ function addNode(kind: NodeKind, offset = 0) {
   }
   nodes.value.push(node)
   selected.value = [node.id]
+}
+const defaultNodeTitleBases: Record<NodeKind, string> = {
+  text: '创意提示词',
+  image: '参考图片',
+  video: '视频素材',
+  audio: '音频素材',
+  config: '图像生成',
+}
+function nextDefaultNodeTitle(kind: NodeKind) {
+  const base = defaultNodeTitleBases[kind]
+  const numberedTitle = new RegExp(`^${base}(\\d+)$`)
+  const highestSequence = nodes.value.reduce((highest, node) => {
+    if (node.kind !== kind) return highest
+    const match = node.title.trim().match(numberedTitle)
+    return match ? Math.max(highest, Number(match[1])) : highest
+  }, 0)
+  return `${base}${highestSequence + 1}`
 }
 function canvasAgentState() {
   return {
@@ -3004,7 +3068,7 @@ function createCanvasAgentNode(payload: Record<string, unknown>) {
   const node: CanvasNode = {
     id: `node-${uid()}`,
     kind,
-    title: String(payload.title || ({ text: '创意提示词', image: '参考图片', video: '视频素材', audio: '音频素材' } as Record<string, string>)[kind]),
+    title: String(payload.title || nextDefaultNodeTitle(kind)),
     content: String(payload.content || ''),
     x: Number.isFinite(Number(payload.x)) ? Number(payload.x) : center.x - width / 2,
     y: Number.isFinite(Number(payload.y)) ? Number(payload.y) : center.y - 150,
@@ -3534,6 +3598,48 @@ function resetView() {
   viewport.x = 50
   viewport.y = 40
   viewport.zoom = 1
+}
+function nodeSearchKindLabel(kind: NodeKind) {
+  return ({ text: '文本', image: '图片', video: '视频', audio: '音频', config: '配置' } as Record<NodeKind, string>)[kind]
+}
+function nodeSearchPreview(node: CanvasNode) {
+  const text = [node.content, node.resultText, node.imagePrompt, node.audioInstructions]
+    .find((value) => value?.trim())
+    ?.replace(/\s+/g, ' ')
+    .trim()
+  return text || '暂无提示词内容'
+}
+async function toggleNodeSearch() {
+  showNodeSearch.value = !showNodeSearch.value
+  if (!showNodeSearch.value) return
+  await nextTick()
+  nodeSearchInput.value?.focus()
+  nodeSearchInput.value?.select()
+}
+let nodeSearchOutsidePointer: { id: number; x: number; y: number } | null = null
+function startNodeSearchOutsidePointer(event: PointerEvent) {
+  nodeSearchOutsidePointer = null
+  if (!showNodeSearch.value || event.button !== 0) return
+  const target = event.target
+  if (target instanceof Element && target.closest('.node-search-panel,.node-search-toggle')) return
+  nodeSearchOutsidePointer = { id: event.pointerId, x: event.clientX, y: event.clientY }
+}
+function finishNodeSearchOutsidePointer(event: PointerEvent) {
+  const start = nodeSearchOutsidePointer
+  nodeSearchOutsidePointer = null
+  if (!start || start.id !== event.pointerId || !showNodeSearch.value) return
+  if (Math.hypot(event.clientX - start.x, event.clientY - start.y) > 5) return
+  const target = event.target
+  if (target instanceof Element && target.closest('.node-search-panel,.node-search-toggle')) return
+  showNodeSearch.value = false
+}
+function cancelNodeSearchOutsidePointer() {
+  nodeSearchOutsidePointer = null
+}
+function locateNodeFromSearch(node: CanvasNode) {
+  focusCanvasAgentNode(node.id)
+  showNodeSearch.value = false
+  flash(`已定位到“${node.title}”`)
 }
 function arrangeNodeSubset(targetNodes: CanvasNode[], successMessage: string) {
   if (!targetNodes.length) return flash('没有可整理的卡片')
@@ -7227,6 +7333,11 @@ function loadLocal() {
   )
 }
 function onKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape' && showNodeSearch.value) {
+    event.preventDefault()
+    showNodeSearch.value = false
+    return
+  }
   if (event.key === 'Escape' && showShortcutHelp.value) {
     event.preventDefault()
     showShortcutHelp.value = false
@@ -7240,7 +7351,17 @@ function onKeydown(event: KeyboardEvent) {
   if (typing) return
   const commandKey = event.ctrlKey || event.metaKey
   const key = event.key.toLowerCase()
-  if (commandKey && key === 'c') {
+  if (commandKey && key === 'a') {
+    event.preventDefault()
+    selected.value = nodes.value.map((node) => node.id)
+    selectedEdge.value = null
+    if (selected.value.length) flash(`已全选 ${selected.value.length} 个节点`)
+  } else if (commandKey && key === 'g') {
+    event.preventDefault()
+    if (selected.value.length < 2) flash('至少选择 2 个节点才能设为分组')
+    else if (selectionIsSingleGroup.value) flash('选中的节点已经属于同一分组')
+    else setSelectedAsGroup()
+  } else if (commandKey && key === 'c') {
     event.preventDefault()
     copySelectedNodes()
   } else if (commandKey && key === 'v') {
@@ -7253,6 +7374,22 @@ function onKeydown(event: KeyboardEvent) {
   } else if (commandKey && key === 's') {
     event.preventDefault()
     saveNow()
+  } else if (!commandKey && event.shiftKey && ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) {
+    event.preventDefault()
+    if (!selected.value.length) return
+    if (!event.repeat) checkpoint()
+    const offset = {
+      ArrowLeft: { x: -10, y: 0 },
+      ArrowRight: { x: 10, y: 0 },
+      ArrowUp: { x: 0, y: -10 },
+      ArrowDown: { x: 0, y: 10 },
+    }[event.key]!
+    selected.value.forEach((id) => {
+      const node = nodeMap.value.get(id)
+      if (!node) return
+      node.x += offset.x
+      node.y += offset.y
+    })
   } else if (event.key === 'Delete' || event.key === 'Backspace') deleteSelected()
   else if (event.key === 'Escape') {
     linkingFrom.value = null
@@ -7304,6 +7441,9 @@ onMounted(() => {
   window.addEventListener('pointerup', finishImageEditorOutsidePointer, true)
   window.addEventListener('pointercancel', cancelImageEditorOutsidePointer, true)
   window.addEventListener('pointerdown', closeAudioVolumeOutside, true)
+  window.addEventListener('pointerdown', startNodeSearchOutsidePointer, true)
+  window.addEventListener('pointerup', finishNodeSearchOutsidePointer, true)
+  window.addEventListener('pointercancel', cancelNodeSearchOutsidePointer, true)
   window.addEventListener('click', closeProjectMenuOutside)
   window.addEventListener('click', closeAudioMenuOutside)
   window.addEventListener('click', closeTextPromptSaveOutside)
@@ -7331,6 +7471,9 @@ onUnmounted(() => {
   window.removeEventListener('pointerup', finishImageEditorOutsidePointer, true)
   window.removeEventListener('pointercancel', cancelImageEditorOutsidePointer, true)
   window.removeEventListener('pointerdown', closeAudioVolumeOutside, true)
+  window.removeEventListener('pointerdown', startNodeSearchOutsidePointer, true)
+  window.removeEventListener('pointerup', finishNodeSearchOutsidePointer, true)
+  window.removeEventListener('pointercancel', cancelNodeSearchOutsidePointer, true)
   window.removeEventListener('click', closeProjectMenuOutside)
   window.removeEventListener('click', closeAudioMenuOutside)
   window.removeEventListener('click', closeTextPromptSaveOutside)
@@ -7482,7 +7625,7 @@ onUnmounted(() => {
           <svg v-else viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10" width="14" height="10" rx="2"></rect><path d="M16 10V7a4 4 0 0 0-7.5-2"></path></svg>
           <span>{{ railLocked ? '锁定' : '收起' }}</span>
         </button>
-        <button v-for="item in toolbarItems" :key="item.kind" :title="item.label" @click="showTemplatePanel = false; showAssetPanel = false; showTaskPanel = false; addNode(item.kind)">
+        <button v-for="item in toolbarItems" :key="item.kind" :title="item.label" @click="showTemplatePanel = false; showAssetPanel = false; showTaskPanel = false; addToolbarNode(item.kind)">
           <b>{{ item.icon }}</b><span>{{ item.label }}</span>
         </button>
         <button title="添加本地文件或资产库内容" aria-label="添加文件或资产" @click="openFileSourceChoice('standalone')">
@@ -7870,7 +8013,17 @@ onUnmounted(() => {
               </article>
             </div>
             <div v-else class="template-empty compact"><b>没有匹配的提示词</b><p>{{ publicPromptError || '请更换关键词或来源' }}</p></div>
-            <button v-if="filteredPublicPrompts.length > publicPromptVisibleLimit" class="public-prompt-more" @click="publicPromptVisibleLimit += 36">加载更多（{{ visiblePublicPrompts.length }}/{{ filteredPublicPrompts.length }}）</button>
+            <div class="template-prompt-footer-actions">
+              <button v-if="filteredPublicPrompts.length > publicPromptVisibleLimit" class="public-prompt-more" @click="publicPromptVisibleLimit += 36">加载更多（{{ visiblePublicPrompts.length }}/{{ filteredPublicPrompts.length }}）</button>
+              <button
+                class="template-prompt-expand-button"
+                title="在完整提示词库中浏览"
+                aria-label="打开完整提示词库"
+                @click="openFullPromptLibraryFromTemplates"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4H4v4M16 4h4v4M20 16v4h-4M8 20H4v-4"></path></svg>
+              </button>
+            </div>
           </div>
         </div>
       </aside>
@@ -8360,7 +8513,7 @@ onUnmounted(() => {
                 @load="onImageLoaded($event, node)"
               />
               <div v-else class="generated-art">
-                <i></i><i></i><i></i><span>INFINITE</span>
+                <i></i><i></i><i></i><span>添加参考图</span>
               </div>
             </div>
             <div
@@ -8556,6 +8709,16 @@ onUnmounted(() => {
               />
               <footer class="media-generation-footer">
                 <span class="node-input-count">{{ activeInputCount(node.id) }} 个输入</span>
+                <button
+                  class="text-expand-editor-button media-expand-editor-button"
+                  title="在弹窗中放大编辑提示词"
+                  aria-label="放大编辑提示词"
+                  @click.stop="openExpandedTextEditor(node)"
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M9 4H4v5M15 4h5v5M9 20H4v-5M15 20h5v-5"></path>
+                  </svg>
+                </button>
                 <button class="node-add-file-button" @click.stop="openFileSourceChoice('upstream', node)">
                   <b>＋</b>
                   <span>添加</span>
@@ -8625,10 +8788,6 @@ onUnmounted(() => {
 
             <div v-if="node.kind === 'text' || node.kind === 'config'" class="node-foot">
               <span class="node-input-count">{{ activeInputCount(node.id) }} 个输入</span>
-              <button class="node-add-file-button" @click.stop="openFileSourceChoice('upstream', node)">
-                <b>＋</b>
-                <span>添加</span>
-              </button>
               <button
                 v-if="node.kind === 'text'"
                 class="text-expand-editor-button"
@@ -8639,6 +8798,10 @@ onUnmounted(() => {
                 <svg viewBox="0 0 24 24" aria-hidden="true">
                   <path d="M9 4H4v5M15 4h5v5M9 20H4v-5M15 20h5v-5"></path>
                 </svg>
+              </button>
+              <button class="node-add-file-button" @click.stop="openFileSourceChoice('upstream', node)">
+                <b>＋</b>
+                <span>添加</span>
               </button>
               <div v-if="node.kind !== 'config'" class="generation-controls">
                 <CustomSelect
@@ -8746,6 +8909,33 @@ onUnmounted(() => {
           </div>
         </div>
 
+        <div v-if="showNodeSearch" class="node-search-panel" @pointerdown.stop @wheel.stop>
+          <header>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"></circle><path d="m16 16 4 4"></path></svg>
+            <input
+              ref="nodeSearchInput"
+              v-model="nodeSearchQuery"
+              type="search"
+              placeholder="搜索节点标题或提示词…"
+              aria-label="搜索节点标题或提示词"
+              @keydown.enter.prevent="nodeSearchResults[0] && locateNodeFromSearch(nodeSearchResults[0])"
+            />
+            <button title="关闭搜索" aria-label="关闭搜索" @click="showNodeSearch = false">×</button>
+          </header>
+          <div v-if="nodeSearchResults.length" class="node-search-results">
+            <button v-for="node in nodeSearchResults" :key="node.id" @click="locateNodeFromSearch(node)">
+              <span :class="`node-search-kind ${node.kind}`">{{ nodeSearchKindLabel(node.kind) }}</span>
+              <span class="node-search-copy">
+                <b>{{ node.title }}</b>
+                <small>{{ nodeSearchPreview(node) }}</small>
+              </span>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v3M12 18v3M3 12h3M18 12h3"></path><circle cx="12" cy="12" r="4"></circle></svg>
+            </button>
+          </div>
+          <div v-else class="node-search-empty">没有找到匹配的节点</div>
+          <footer>共 {{ nodeSearchResults.length }} 个结果 · Enter 定位第一项</footer>
+        </div>
+
         <div class="view-controls">
           <button @click="showMinimap = !showMinimap">⌗</button>
           <button @click="viewport.zoom = Math.max(.35, viewport.zoom - .1)">−</button>
@@ -8754,6 +8944,15 @@ onUnmounted(() => {
           <button title="重置视图" @click="resetView">⌂</button>
           <button class="arrange-view-button" title="自动整理卡片" aria-label="自动整理卡片" @click="autoArrangeNodes">
             <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="6" height="5" rx="1"></rect><rect x="15" y="3" width="6" height="5" rx="1"></rect><rect x="15" y="16" width="6" height="5" rx="1"></rect><path d="M9 7.5h3a3 3 0 0 1 3 3v8M12 10.5h3"></path></svg>
+          </button>
+          <button
+            class="node-search-toggle"
+            :class="{ active: showNodeSearch }"
+            title="搜索与定位节点"
+            aria-label="搜索与定位节点"
+            @click.stop="toggleNodeSearch"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6"></circle><path d="m15 15 4.5 4.5"></path></svg>
           </button>
           <button class="danger" title="清空画布" @click="clearCanvas">⌫</button>
         </div>
