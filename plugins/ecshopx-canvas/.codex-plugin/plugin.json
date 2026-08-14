@@ -1,0 +1,38 @@
+{
+  "name": "ecshopx-canvas",
+  "version": "0.1.0+codex.20260814022520",
+  "description": "Use Codex to inspect and operate ecshopx-canvas through a local MCP bridge.",
+  "author": {
+    "name": "Groot810",
+    "url": "https://github.com/Groot810"
+  },
+  "homepage": "https://groot810.github.io/ecshopx-canvas/",
+  "repository": "https://github.com/Groot810/ecshopx-canvas",
+  "keywords": [
+    "canvas",
+    "ai-workflow",
+    "mcp",
+    "codex"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "ecshopx-canvas",
+    "shortDescription": "Use Codex to build and operate node-based AI workflows.",
+    "longDescription": "Connects Codex to the current ecshopx-canvas through a local-only MCP bridge. Codex can inspect nodes and edges, create and update nodes, build directed workflows, focus nodes, and trigger generation.",
+    "developerName": "Groot810",
+    "category": "Productivity",
+    "capabilities": [
+      "Canvas",
+      "MCP",
+      "AI Workflow"
+    ],
+    "websiteURL": "https://groot810.github.io/ecshopx-canvas/",
+    "brandColor": "#18191B",
+    "defaultPrompt": [
+      "\u6253\u5f00 ecshopx-canvas \u5e76\u8bfb\u53d6\u5f53\u524d\u753b\u5e03",
+      "\u6839\u636e\u5f53\u524d\u9009\u533a\u521b\u5efa\u4e00\u5957\u751f\u56fe\u5de5\u4f5c\u6d41",
+      "\u6574\u7406\u5f53\u524d\u753b\u5e03\u5e76\u68c0\u67e5\u8282\u70b9\u8fde\u7ebf"
+    ]
+  },
+  "mcpServers": "./.mcp.json"
+}

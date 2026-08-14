@@ -1,0 +1,20 @@
+{
+  "name": "ecshopx-canvas-local",
+  "interface": {
+    "displayName": "ecshopx-canvas Local"
+  },
+  "plugins": [
+    {
+      "name": "ecshopx-canvas",
+      "source": {
+        "source": "local",
+        "path": "./plugins/ecshopx-canvas"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

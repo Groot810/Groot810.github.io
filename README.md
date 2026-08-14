@@ -1,4 +1,4 @@
-# Infinite Canvas
+# ecshopx-canvas
 
 基于 Vue 3、TypeScript 和 Vite 的本地优先节点式 AI 创作工作台。文本、图片、视频和音频节点通过有向连线传递真实上下文，可分别接入不同的 OpenAI 兼容模型服务。
 
@@ -215,6 +215,233 @@ Base URL 会原样使用，不会自动补 `/v1`。“测试模型”默认请�
 | `Esc` | 取消连线或关闭当前输入面板 |
 
 光标位于输入框、文本编辑器或媒体提示词区域时，`Backspace` 和 `Delete` 只编辑文字，不会删除节点。
+
+## Codex 插件
+
+安装插件后，用户可以直接用自然语言让 Codex 操作网页里的画布，例如创建节点、连接工作流、读取选区或触发生成。
+
+> 只想自己在网页中拖动节点、上传文件和生成内容，不需要安装插件。需要使用 Codex、项目内置 Skill 或其他外部 Skill 操作画布时，必须安装插件并保持 Codex 运行。项目内置的 `canvas` 和 `open-canvas` Skill 会随插件一起安装，不需要单独下载或复制。
+
+### 插件、Skill 和网页的关系
+
+```text
+用户向 Codex 提出要求
+        ↓
+Skill 告诉 Codex 应该怎样操作画布
+        ↓
+插件提供 MCP 工具和本地桥接服务
+        ↓
+ecshopx-canvas 网页执行创建、连接、修改或生成操作
+```
+
+- **网页**：显示画布，并执行节点编辑和模型生成；可以脱离 Codex 单独使用。
+- **Skill**：是 Codex 的操作说明，不能被普通网页直接读取或执行。
+- **插件**：负责把 Skill、MCP 工具和本地桥接一起安装到 Codex。
+- **外部生图 Skill**：应安装在 Codex 中；如果它需要操作本画布，仍然要通过 `ecshopx-canvas` 插件提供的 MCP 工具。
+
+### 第一次使用：在线画布
+
+#### 第一步：下载插件项目
+
+**方法一：使用 Git 下载**
+
+先在终端进入希望保存项目的目录。例如想把项目放到 Windows 的“下载”文件夹：
+
+```powershell
+cd "$HOME\Downloads"
+```
+
+然后下载项目：
+
+```bash
+git clone https://github.com/Groot810/ecshopx-canvas.git
+```
+
+下载完成后，`git clone` 会在当前目录创建一个名为 `ecshopx-canvas` 的项目文件夹。继续运行下面的命令进入该文件夹：
+
+```bash
+cd ecshopx-canvas
+```
+
+**方法二：下载 ZIP**
+
+1. 打开 [ecshopx-canvas GitHub 仓库](https://github.com/Groot810/ecshopx-canvas)；
+2. 点击 `Code → Download ZIP`；
+3. 下载完成后解压 ZIP；
+4. 打开解压得到的项目文件夹；
+5. 在文件夹空白处点击右键，选择“在终端中打开”。
+
+如果终端已经打开，也可以用完整路径进入项目文件夹。例如：
+
+```powershell
+cd "C:\Users\你的用户名\Downloads\ecshopx-canvas"
+```
+
+路径中存在空格时必须保留双引号。进入正确目录后，运行下面的命令检查：
+
+```powershell
+dir
+```
+
+如果列表中能看到 `package.json`、`plugins` 和 `.agents`，说明终端已经位于正确的项目根目录。后面的插件安装命令都必须在这个目录中执行。
+
+继续检查插件市场清单和插件清单是否真的存在：
+
+```powershell
+Test-Path ".agents\plugins\marketplace.json"
+Test-Path "plugins\ecshopx-canvas\.codex-plugin\plugin.json"
+```
+
+两条命令都必须返回 `True`。如果返回 `False`，说明下载的项目版本不完整、下载了旧版本，或者项目维护者尚未把插件文件提交到 GitHub；此时不要继续执行安装命令。
+
+#### 第二步：安装 Codex 插件
+
+确保电脑已经安装 Codex 和 Node.js，然后在刚才的 `ecshopx-canvas` 文件夹中运行：
+
+```bash
+codex plugin marketplace add .
+codex plugin add ecshopx-canvas@ecshopx-canvas-local
+```
+
+第一条命令只是把当前项目注册为一个插件市场源，不会直接安装插件。Codex 会读取：
+
+```text
+.agents/plugins/marketplace.json
+```
+
+然后第二条命令才会从这个市场源安装 `ecshopx-canvas` 插件。
+
+看到安装成功提示后，关闭旧的 Codex 任务并新建一个任务。已经打开的旧任务不会自动加载新插件。
+
+#### 第三步：打开画布网页
+
+在浏览器中打开：
+
+```text
+https://groot810.github.io/ecshopx-canvas/
+```
+
+保持该网页打开。插件通过用户电脑上的 `127.0.0.1:43128` 与网页连接，不需要手动填写端口、地址或 Token。
+
+#### 第四步：让 Codex 连接画布
+
+在新建的 Codex 任务中输入：
+
+```text
+连接 ecshopx-canvas，读取当前画布
+```
+
+连接成功后，Codex 会返回当前画布名称、节点和连线。之后可以继续输入：
+
+```text
+在画布中创建一个标题为“产品资料”的文本节点
+在产品资料右侧创建一个图片节点，并连接两者
+读取当前选中的节点
+把选中的节点整理为从左到右排列
+定位到“产品资料”节点
+运行右侧的图片节点
+```
+
+用户不需要记住 MCP 工具名，也不需要复制节点 JSON。直接描述想做什么即可。
+
+### 第一次使用：本地开发版
+
+如果不使用在线网页，需要在项目目录安装依赖并启动本地网页：
+
+
+```bash
+pnpm install
+pnpm dev
+```
+
+打开终端显示的地址，例如 `http://127.0.0.1:5173/`。保持页面和开发服务器运行，然后在新 Codex 任务中输入：
+
+```text
+打开并连接本地 ecshopx-canvas
+```
+
+插件安装步骤与在线版相同，只是打开的画布地址不同。
+
+### 日常使用顺序
+
+以后插件不需要每天重复安装。每次使用按照下面的顺序即可：
+
+1. 打开在线画布，或运行 `pnpm dev` 后打开本地画布；
+2. 新建一个已经加载 `ecshopx-canvas` 插件的 Codex 任务；
+3. 输入“连接 ecshopx-canvas，读取当前画布”；
+4. 连接成功后，直接告诉 Codex 要创建、连接、修改、定位或运行哪些节点；
+5. 使用期间保持画布网页打开。
+
+### 插件能做什么
+
+| 用户提出的要求 | 插件执行的操作 |
+|---|---|
+| “看看当前画布有什么” | 读取画布、节点、连线和选区 |
+| “创建一个文本节点” | 新建文本、图片、视频或音频节点 |
+| “把 A 连接到 B” | 建立 `A → B` 有向数据连线 |
+| “修改、移动或删除这些节点” | 批量操作指定节点 |
+| “帮我找到这个节点” | 选中节点并把视角移动过去 |
+| “生成这个节点” | 按当前模型配置和直接上游输入触发生成 |
+
+插件只传递画布结构和操作指令，不会向 MCP 返回 API Key、Base URL 或媒体文件正文。实际模型请求仍由网页按照用户配置发送。
+
+### 更新插件
+
+通过 Git 获取项目的用户，在项目目录运行：
+
+```bash
+git pull
+codex plugin add ecshopx-canvas@ecshopx-canvas-local
+```
+
+下载 ZIP 的用户需要重新下载并覆盖旧项目，然后再次执行安装命令。更新后必须新建 Codex 任务。
+
+### 不再使用插件
+
+可以在 Codex 的插件管理界面中卸载 `ecshopx-canvas`。卸载插件不会删除浏览器中保存的画布、模板、提示词或资产。
+
+### 连接失败排查
+
+1. 确认画布网页处于打开状态；关闭网页后 Codex 无法操作画布。
+2. 安装或更新插件后，新建 Codex 任务再连接，不要继续使用旧任务。
+3. 等待一秒后再次输入“读取当前画布”，让网页完成第一次连接心跳。
+4. 确认电脑没有其他程序占用 `43128` 端口。
+5. 在线网页无法连接时，检查浏览器是否禁止网页访问本机回环地址。
+6. 更换在线域名后，需要同步更新 Agent 的来源白名单，否则连接会返回 `403`。
+
+如果安装市场源时出现下面的错误：
+
+```text
+does not contain a supported manifest
+```
+
+表示传给 `codex plugin marketplace add` 的目录中不存在 Codex 支持的市场清单。请确认：
+
+1. 终端当前位于项目根目录，而不是 `plugins/ecshopx-canvas` 子目录；
+2. `.agents/plugins/marketplace.json` 确实存在；
+3. `plugins/ecshopx-canvas/.codex-plugin/plugin.json` 确实存在；
+4. 从 GitHub 下载时使用的是包含插件文件的最新版本。
+
+### 在线地址与自定义域名
+
+GitHub Pages 的项目站点默认格式是：
+
+```text
+https://<GitHub 用户名>.github.io/<仓库名>/
+```
+
+不想在网址中显示 GitHub 用户名，可以选择：
+
+- 给 GitHub Pages 绑定自己的域名，例如 `https://canvas.example.com/`；
+- 部署到 Cloudflare Pages，使用类似 `https://ecshopx-canvas.pages.dev/` 的项目域名；
+- 部署到其他静态托管平台，或给这些平台绑定自己的域名。
+
+
+更换正式在线地址后，需要同步修改以下位置并重新构建、重新安装插件：
+
+1. `plugins/ecshopx-canvas/.codex-plugin/plugin.json` 中的 `homepage`、`websiteURL`；
+2. `plugins/ecshopx-canvas/skills/open-canvas/SKILL.md` 中的默认在线地址；
+3. `plugins/ecshopx-canvas/agent/index.mjs` 中的 `allowedOrigin()` 来源白名单。
 
 ## 使用提醒
 

@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "ecshopx-canvas": {
+      "command": "node",
+      "args": ["agent/index.mjs"],
+      "startup_timeout_sec": 10,
+      "tool_timeout_sec": 40
+    }
+  }
+}
